@@ -1,0 +1,83 @@
+# Best File Format for Knowledge Uploads in OpenAI Agent Builder (Vector Stores)
+
+When providing knowledge files to an agent through a **Vector Store**, the **best file format** depends on the type of content.  
+
+---
+
+## ✅ Recommended: `.md` (Markdown, UTF-8)
+
+Markdown is human-readable, well-structured for semantic chunking, and **officially supported** by OpenAI’s File Search and Vector Stores.  
+It’s ideal for documents, knowledge bases, manuals, and research outputs.
+
+### **Advantages**
+- Clear hierarchy via `#` headings and bullet points.  
+- Natural chunking on section breaks (H1–H3).  
+- Easy for both humans and LLMs to read and maintain.  
+- Rich formatting (tables, code, links) preserved in embeddings.
+
+### **Best Practices**
+1. **Structure**
+   - Use logical headings (H1, H2, H3).  
+   - Keep paragraphs short (~400–800 tokens per section).  
+   - Separate distinct topics into their own sections.
+
+2. **Metadata**
+   Add a short metadata block at the top of each file or section:
+   ```
+   Title: Exact Online API Reference
+   Summary: All tables, fields, and relationships.
+   Date: 2025-10-20
+   Source: https://example.com
+   ```
+
+3. **Tables**
+   Use Markdown tables for lists or structured fields:
+   ```
+   | Field | Type | Description |
+   |--------|------|-------------|
+   | invoice_id | string | Unique invoice identifier |
+   ```
+
+4. **Avoid Redundancy**
+   Reference shared definitions instead of repeating them across sections.
+
+---
+
+## 🧩 When to Use `.jsonl` (JSON Lines)
+
+Use `.jsonl` **only** if your content is highly structured — e.g., hundreds of uniform records such as API endpoints, product descriptions, or field definitions.
+
+Each line represents one self-contained JSON object:
+```json
+{"id": "001", "title": "Invoice Fields", "body": "All fields related to purchase invoices...", "source": "https://example.com", "tags": ["finance", "invoice"]}
+```
+
+### **Minimum Recommended Fields**
+- `id`
+- `title`
+- `body`
+- `source` (optional but helpful)
+- `tags` (optional)
+
+---
+
+## 🌍 Language
+
+- You can safely use **Dutch or English** — OpenAI’s embedding models are multilingual.  
+- Keep each vector store **consistent in one language** to ensure more coherent search and retrieval.
+
+---
+
+## 🧠 Summary
+
+| Use Case | Recommended Format | Why |
+|-----------|-------------------|-----|
+| General knowledge, manuals, research docs | `.md` | Readable, well-structured, chunk-friendly |
+| Structured datasets (records, entries) | `.jsonl` | Easy to filter and index |
+| Mixed languages | Separate per language | Improves retrieval accuracy |
+
+---
+
+**In short:**  
+Start with well-structured `.md` files (UTF-8, consistent language).  
+Use `.jsonl` only when you need record-level control or filtering.
