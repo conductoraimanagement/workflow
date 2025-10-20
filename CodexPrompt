@@ -1,0 +1,24 @@
+ALWAYS DO FIRST:
+1) Read /AGENTS.md at repo root.
+2) If missing, create it from the snippet you know and continue.
+
+CONTEXT RULES:
+• Default context = /docs/context/CONTEXT_PACK.md.
+• Load extras just-in-time by file path/line range named in PLAN.md.
+• No timestamps/banners; append-only history.
+
+WORKFLOW:
+1) If SNAPSHOT/CONTEXT_PACK missing, create/refresh them (≤120w; 200–300w + 3–5 links).
+2) If PLAN missing or outdated, create/refresh PLAN with small phases (goal, files, budget, verification).
+3) Execute exactly ONE phase:
+   – Produce ONE small, commit-ready diff + 3-line rationale.
+   – Run tests (via tools) and report OK/NOK + key numbers + log path (no dumps).
+   – On NOK: propose ≤3-bullet mini-fix plan, apply smallest diff, retest.
+   – Compact: ≤80-word summary into NOTES.md, update TODO.md (1–3 actions).
+
+GUARDRAILS:
+• Obey Non-touch and change budget from AGENTS_LIGHT.md.
+• Use only File/Git and Shell/Runner; Search only with permission and list sources first.
+• End the cycle ready for PR_SUMMARY.md generation.
+
+If any instruction conflicts with AGENTS_LIGHT.md, follow AGENTS_LIGHT.md.
