@@ -1,0 +1,1650 @@
+
+
+
+# OpenAI AgentKit & Agents SDK — Unified Knowledge Compendium (Merged)
+
+**Version:** 2025-10-18 16:34 UTC
+**Sources:** 
+- AgentPlatform_All_in_One_Knowledge_v1 (2).md
+- OpenAI AgentKit, Agent Builder, and Agents SDK — Consolidated Knowledge Compendium
+- Overzicht van kerncomponenten.docx
+
+**Deduplication Policy:** 
+- Headings are preserved verbatim to maintain structure.
+- Non-heading blocks (paragraphs, lists, tables, code fences) are included unless an **exact** duplicate block already appeared earlier in this merged document.
+- No unique information has been removed; only exact duplicates have been skipped.
+
+---
+## Part A — Agent Platform (All‑in‑One Knowledge Pack)
+
+_Source_: **AgentPlatform_All_in_One_Knowledge_v1 (2).md**
+
+# OpenAI Agent Platform (AgentKit, Agent Builder & Agents SDK) — All‑in‑One Knowledge Pack
+
+_Last updated: 2025-10-17_
+
+> **Purpose** — A single, duplication‑free, machine‑readable reference that unifies OpenAI **AgentKit/Agent Builder** and the **Agents SDK (Python & JS/TS)** for production‑grade agentic systems.  
+> **Use** — Drop this file into your vector store for RAG, or use it as ground truth for evaluators and prompt optimization.  
+> **Note** — Fast‑moving surface area; items marked **VERIFY** require confirmation against the latest official docs.
+
+## Executive Summary
+
+**AgentKit** is het OpenAI‑platform om agents te bouwen, deployen en optimaliseren. Het bestaat uit:
+- **Agent Builder**: visuele canvas om agentische workflows te ontwerpen (met versies, preview‑runs en inline evals).
+- **Agents SDK**: code‑first orkestratie (Python/TypeScript) bovenop de **Responses API**.
+- **ChatKit**: toolkit om chat‑gebaseerde agent‑UI’s in je product te embedden, incl. widgets en acties.
+- **Connector Registry**: centraal beheer van data‑/tool‑connecties (MCP & prebuilt connectors) over ChatGPT en de API.
+- **Evals & Prompt Optimizer**: datasets, trace‑grading en automatische prompt‑optimalisatie om prestaties te meten en te verbeteren.
+- **Guardrails**: open‑source veiligheidslaag voor input/output‑checks (PII‑masking, jailbreak‑detectie, enz.).
+
+**Waarom relevant?** Je krijgt één aaneengesloten stack voor **planning, tool‑use, UI, evaluatie en governance** in plaats van losse onderdelen.
+
+The **OpenAI Agents SDK** is a lightweight framework (Python and TypeScript) for building **agentic applications**. It provides a small set of primitives—**Agents**, **Tools**, **Handoffs**, **Guardrails**, **Runner** (agent loop), plus **Sessions**, **Streaming**, **Tracing**, **Context management**, and **Usage tracking**—on top of OpenAI’s **Responses API** (also supports Chat Completions and non‑OpenAI models via adapters). The same primitives cover text and voice (Realtime) agents.
+
+Key takeaways:
+
+- **Few core primitives, high power**: define an `Agent` with instructions, tools, and (optionally) handoffs; call it with `Runner.run(...)` or `run(...)` (TS).  
+- **Three tool classes**: *Hosted tools* (web search, file search, code interpreter, computer‑use, image gen, hosted MCP, local shell), *Function tools* (wrap any function), and *Agents‑as‑tools* (call an agent without full handoff).  
+- **Multi‑agent workflows**: Let the LLM plan (handoffs + tools) or orchestrate deterministically in code; mix both.  
+- **First‑class observability**: built‑in **Streaming** events, **Results** object, **Tracing** (OpenAI Traces + custom exporters), and automatic **Usage** metrics.  
+- **Memory & turn management**: **Sessions** for conversation history (SQLite, SQLAlchemy, encrypted, or OpenAI Conversations), with helpers for corrections/branching.  
+- **MCP everywhere**: integrate tools via **Hosted MCP** (Responses API calls tools server‑side) or via **HTTP/SSE/Streamable HTTP/Stdio** transports from your process.  
+- **Safety & control**: **Guardrails** for input/output with tripwires; optional **tool approval gates**; logging controls and ZDR constraints.  
+- **Models**: defaults to `gpt-4.1` in Python docs at time of writing, easy override to **GPT‑5** family with `ModelSettings` (Python) or `getDefaultModelSettings` (TS); non‑OpenAI via LiteLLM/AI SDK adapters.
+
+---
+
+- What it is: A lightweight framework for building agentic workflows (single and multi‑agent) with LLMs, tools, handoffs, guardrails, sessions, and tracing. Provided in Python (openai-agents) and TypeScript (@openai/agents) implementations.
+- Model-agnostic: Works with OpenAI Responses and Chat Completions APIs; can integrate non‑OpenAI models (e.g., via LiteLLM adapter in Python).
+- Core building block: An Agent = LLM + instructions + tools + optional handoffs + optional guardrails + model settings + hooks + output schema.
+
+## Platform Components
+**AgentKit** bundelt meerdere bouwstenen:
+- **Agent Builder** — Visuele builder voor multi‑agent workflows met nodes voor **Core** (Agent/End/Note), **Tools** (File search, Guardrails, MCP), **Logic** (If/else, While, User approval) en **Data** (Transform, Set state).  
+  *Voorbeeld van de UI‑palet en agent‑paneel:*  
+  ![Agent Builder node‑palet](img/agentbuilder-palette.png)
+  ![Agent node‑paneel](img/agent-node-panel.png)
+- **Agents SDK (Python/TS)** — Programmeer je flow met `Agent`, `Runner`, tools (web/file/MCP), hand‑offs, en tracing.
+- **ChatKit** — Embed widgets en acties in je app; verbind ze met agent‑runs of MCP‑tools.
+- **Connector Registry** — Beheer (prebuilt) connectors zoals Google Drive, SharePoint, GitHub plus eigen MCP‑servers vanuit één admin‑paneel (workspace/enterprise). 
+- **Deep Research** — Agent die web & interne bronnen systematisch doorzoekt en synthetiseert naar rapporten met citaties; inzetbaar direct of via Agents SDK.
+- **Responses API** — De onderliggende API met tool‑calling, streaming, background mode, web search en file search.
+- **Evals & Prompt Optimizer** — Evalflows (datasets, trace‑grading) en automatische prompt‑optimalisatie om robuuste prompts te ontwikkelen.
+**Beschikbaarheid** en **governance** verschillen per plan en workspace; connector‑functies en enterprise‑governance vereisen meestal Business/Enterprise/Edu. Zie de bronnenlijst voor actuele status.
+
+## Architecture & Core Concepts
+**Agent** — een systeem met **instructies**, **guardrails** en **tools** dat zelfstandig beslissingen neemt en acties uitvoert.  
+**Tools** — ingebouwde (web/file/computer use) of externe via **MCP**; tools retourneren gestructureerde resultaten.  
+**Planning & routing** — via modelredenering (Responses API, reasoning models) en/of expliciete **Logic**‑nodes.  
+**State & memory** — conversatie‑/run‑state die door nodes kan worden gelezen/geschreven; samenvattingen voor lange sessies.  
+**RAG** — vectorstores & file‑search voor context; MCP‑servers voor interne bronnen.  
+**Evaluatie & observability** — tracing (events, spans), eval‑datasets, trace‑grading en dashboards.  
+**Governance** — connector‑policy, authN/Z per tool, **Guardrails** (pre/post‑checks), audit en approval‑gates.
+
+## Key Concepts & Terminology
+### 1.1 Agent
+An **Agent** is an LLM configured with:
+- `name`, `instructions` (system/dev prompt; can be static or function‑generated), optional `input_type` and `output_type` (structured types / schemas)  
+- **tools** (function tools, hosted tools, or other agents as tools)  
+- **handoffs** (delegation to other agents)  
+- optional **guardrails**, **model**, and **model_settings**
+> Agent loop: the SDK handles tool selection and iterative steps until the model is done or limits are reached.
+### 1.2 Runner
+The **Runner** executes an agent run (async/sync), manages the tool loop, and returns a **Run Result** with the final output, items emitted (messages, tool calls, handoffs, reasoning), and context/usage. In TS, use `run(agent, input, options)` which provides a similar loop abstraction.
+### 1.3 Tools (actions)
+Ways for an agent to act:
+- **Hosted tools** (Responses API‑managed): `WebSearch`, `FileSearch` (OpenAI Vector Stores), `ComputerTool` (computer‑use), `CodeInterpreter`, `HostedMCP`, `ImageGeneration`, `LocalShell`.  
+- **Function tools**: any Python/TS function with schema inferred from type hints (Pydantic/typing) or Zod (TS).  
+- **Agents as tools**: wrap an agent itself as a callable tool, without transferring full control.
+### 1.4 Handoffs (agent‑to‑agent delegation)
+A **handoff** is exposed to the LLM as a special tool like `transfer_to_<AgentName>`. You can customize prompts, approval, input types, and filters that shape what history/inputs the next agent sees.
+### 1.5 Guardrails (safety checks)
+**Input** and **Output** guardrails run parallel to agent computation and can trigger **tripwires** to halt runs (e.g., jailbreaks, policy checks, PII). Implement with decorators (`@input_guardrail` / `@output_guardrail` in Python) or definitions in TS; return structured results and a boolean `tripwire_triggered`.
+### 1.6 Sessions (memory)
+**Sessions** persist conversation history between turns. SDK ships SQLite/SQLAlchemy/Encrypted sessions and supports **OpenAI Conversations** for server‑managed threads. Helpers include `pop_item()` for corrections and advanced branching.
+### 1.7 Results & Streaming
+A **RunResult** exposes `final_output`, `new_items` (messages, tool calls, handoff calls, reasoning), `last_agent`, `to_input_list()` and raw model events. **Streaming** lets you subscribe to raw Responses deltas and higher‑level run/agent events for live UIs.
+### 1.8 Tracing & Usage
+**Tracing** is on by default; spans cover agents, tool calls, handoffs, guardrails, speech, etc. View in **OpenAI Traces**; export elsewhere via processors. **Usage** aggregates requests and tokens; available via `result.context_wrapper.usage` (Python) or `Usage` (TS).
+
+## Key Concepts & Terminology (SDK)
+- Agent, Runner, Tool (Hosted/Function/Agent‑as‑tool), Handoff, Guardrails, Sessions, MCP, Tracing, Streaming, Results & Items.
+
+## Agent Builder UI — Nodes & Settings
+De canvas bevat **nodes** (blokken) die je verbindt met paden (edges). Top‑bar acties omvatten doorgaans: **Evaluate**, **Code**, **Preview** en **Publish**. In het agent‑configpaneel vind je o.a. **Model**, **Reasoning effort**, **Include chat history**, **Tools**, **Output format**, en toggles zoals **Display response in chat**, **Show search sources**, **Continue on error**, **Write to conversation history**.
+> **Tip** — Gebruik **Preview** om een pad te testen met voorbeeldinput; gebruik **Evaluate** om testsets te draaien en regressies te spotten; **Publish** maakt een versie die je via SDK/ChatKit kunt aanroepen.
+### 3.1 Core
+- **Agent**  
+  _Doel_: roept het gekozen model via Responses API aan, met optionele tools en guardrails.  
+  _Belangrijkste opties_: 
+  - **Instructions** (systeemprompt), **Model**, **Reasoning effort** (low/medium/high).
+  - **Tools** (selecteer web/file/MCP).  
+  - **Output format** (Text/JSON/Structured outputs), **Verbosity/Summary** (indien beschikbaar in het model).  
+  - **Chat‑weergave** toggles: **Display response in chat**, **Show search sources** (handig bij web/file search).  
+  - **Execution**: **Continue on error** (probeer flow door te laten lopen), **Write to conversation history** (persistente context).
+  _Wanneer gebruiken_: elke ML‑beslissing, planning, extractie of synthese‑stap.
+- **End**  
+  Sluit een pad af. Gebruik meerdere **End**‑punten om verschillende uitkomsten te markeren (bv. “resolved”, “human_handoff”).
+- **Note**  
+  Documentatieblok op de canvas (geen effect op runtime). Gebruik voor team‑hints, risiconotities of TODO’s.
+### 3.2 Tools
+- **File search**  
+  _Doel_: context ophalen uit vectorstores (RAG).  
+  _Patroon_: (1) upload/sync documenten → (2) zoek op query of entiteiten → (3) geef passages terug aan een Agent‑node.  
+  _Let op_: splits codeblokken/tabellen niet bij ingest; voeg metadata toe (zie §11).
+- **Guardrails**  
+  _Doel_: uitvoer/invoer controleren; PII‑masking; jailbreak‑detectie; policy‑checks.  
+  _Patroon_: zet vóór kritieke acties (API‑calls) en na modeluitvoer; routeer bij **fail** naar **User approval** of **End (blocked)**.
+- **MCP**  
+  _Doel_: verbind met externe **Model Context Protocol**‑servers (eigen tools/connectors).  
+  _Patroon_: definieer tool‑schema’s; beheer auth; roep via Agent‑node (tool‑calling) of direct als Tool‑node (workflow‑stap).
+### 3.3 Logic
+- **If / else**  
+  Branching op basis van een expressie of state‑waarde (bijv. `risk.score >= 0.8`).  
+  _Tip_: houd condities kort en herbruik state‑keys via **Set state**.
+- **While**  
+  Herhaal een subpad totdat een conditie **false** wordt of een maximaal aantal iteraties is bereikt (bijv. “fetch next page while `next_cursor`”).  
+  _Best practice_: begrens iteraties en log voortgang in state (counter, cursors).
+- **User approval**  
+  Human‑in‑the‑loop checkpoint. Toon samenvatting en **diff**; bij “approve” vervolgpad→ **Agent**/**MCP**; bij “reject” → herstelpad of **End**.
+### 3.4 Data
+- **Transform**  
+  JSON‑transformatie zonder modelaanroep (map/merge/compute). Gebruik om tool‑output te herstructureren naar het schema dat de volgende node verwacht.
+- **Set state**  
+  Schrijf sleutel/waarde in de workflow‑state (bv. `state.customer_id`, `state.next_cursor`). Helpt om paden te ontkoppelen.
+### 3.5 Voorbeeld (klein)
+**Use‑case**: factuurvragen beantwoorden met RAG + guardrails + human‑check.
+
+```
+Start
+  → File search ("Invoices 2024" vectorstore)
+  → Agent ("Answer with citations", tools: file_search, show sources)
+  → Guardrails (hallucination + PII redaction)
+    ├─ pass → If/else (confidence >= 0.8?)
+    │        ├─ yes → End (resolved)
+    │        └─ no  → User approval → End (approved|rejected)
+    └─ fail → End (blocked)
+```
+
+```
+
+## Models & Model Selection
+**Kernfamilies (2025):**
+- **GPT‑5** — all‑round & agentic/coding sterk; nieuwe parameters (bijv. `verbosity`), 128k context; aanbevolen default voor veel API‑taken.  
+- **o3 / o4‑mini** — reasoning‑modellen (o3 → hoogste nauwkeurigheid; **o4‑mini** → sneller/goedkoper, vaak gebruikt voor Deep Research varianten).  
+- **GPT‑4.1 (en mini)** — lange context (tot 1M tokens op snapshots), sterke tool‑calling; geen reasoning stap.  
+- **Realtime / Audio / Image** — voor voice/AV of multimodale UI’s (ChatKit of Realtime API).
+**Keuzetips:**
+- **Agentic tool‑use & code** → GPT‑5 (of GPT‑5 mini voor lagere kosten).  
+- **Plan/synthese over meerdere bronnen** → o3 of o4‑mini (Deep Research).  
+- **Lang‑context RAG zonder extra reasoning** → GPT‑4.1/mini.  
+- **Latency‑kritisch** → mini‑varianten; optimaliseer `reasoning_effort`, batch en caching.
+
+## Models (SDK‑side)
+- **OpenAI models (Responses API)**: recommended **OpenAIResponsesModel** (Python) / `OpenAIResponsesModel` (TS). The Python docs note the **default model is `gpt‑4.1`**, and you can set `OPENAI_DEFAULT_MODEL` to switch, e.g. `gpt-5`.  
+- **Model settings**: `ModelSettings` controls temperature, tool choice, reasoning effort & verbosity (GPT‑5 defaults to `effort="low"`, verbosity `"low"`; can override for latency/cost).  
+- **Chat Completions**: `OpenAIChatCompletionsModel` for providers not yet on Responses; try to stick to one model shape per workflow.  
+- **Non‑OpenAI models**: via **LiteLLM** in Python or the **AI SDK adapter** in TS; remember tracing and structured outputs support vary by provider.
+Python override:
+```python
+
+```python
+from agents import Agent, ModelSettings
+from openai.types.shared import Reasoning
+agent = Agent(
+  name="Planner",
+  model="gpt-5",
+  model_settings=ModelSettings(reasoning=Reasoning(effort="minimal"), verbosity="low"),
+)
+```
+
+```
+TypeScript default model helpers:
+```ts
+
+```ts
+import { getDefaultModelSettings } from "@openai/agents";
+```
+
+```
+
+## Agents SDK — Quickstart & Installation
+### 2.1 Python — Hello World
+```python
+
+```python
+from agents import Agent, Runner
+agent = Agent(name="Assistant", instructions="You are a helpful assistant.")
+result = Runner.run_sync(agent, "Write a haiku about recursion in programming.")
+print(result.final_output)
+```
+
+```
+### 2.2 TypeScript — Hello World
+```ts
+
+```ts
+import { Agent, run } from "@openai/agents";
+const agent = new Agent({
+  name: "Assistant",
+  instructions: "You are a helpful assistant.",
+});
+const result = await run(agent, "Write a haiku about recursion in programming.");
+console.log(result.finalOutput);
+```
+
+```
+
+## Libraries & Installation (SDK)
+### Python
+- Package: openai-agents (PyPI); Python 3.9+
+- Install (pip): `pip install openai-agents` | voice extras: `pip install "openai-agents[voice]"` | redis: `pip install "openai-agents[redis]"`
+- Install (uv): `uv add openai-agents` | voice: `uv add "openai-agents[voice]"` | redis: `uv add "openai-agents[redis]"`
+- Hello world (sync):
+```python
+
+```python
+from agents import Agent, Runner
+agent = Agent(name="Assistant", instructions="You are a helpful assistant")
+print(Runner.run_sync(agent, "Write a haiku about recursion.").final_output)
+```
+
+```
+### JavaScript / TypeScript
+- Package: @openai/agents (npm)
+- Runtime: Node.js 22+ (Deno/Bun supported; CF Workers experimental with nodejs_compat)
+- Install: `npm install @openai/agents zod@3`
+- Hello world:
+```ts
+
+```ts
+import { Agent, run } from '@openai/agents';
+const agent = new Agent({ name: 'Assistant', instructions: 'You are a helpful assistant' });
+const result = await run(agent, 'Write a haiku about recursion in programming.');
+console.log(result.finalOutput);
+```
+
+```
+
+## Running Agents
+- **Single turn**: `Runner.run(agent, input)` (async) or `run_sync` (Python) / `run` (TS).  
+- **Looping**: build a `while` loop; use `result.to_input_list()` to append a follow‑up turn.  
+- **Human‑in‑the‑loop**: stream events; insert approval UI when tools or handoffs require consent; resume runs after long‑running actions.
+Python sketch:
+```python
+
+```python
+from agents import Agent, Runner
+agent = Agent(name="Support", instructions="Be concise.")
+items = "I need to reset my password"
+while True:
+    result = Runner.run_sync(agent, items)
+    print("Assistant:", result.final_output)
+    user = input("You: ")
+    if user.strip().lower() in {"quit", "q"}:
+        break
+    items = result.to_input_list() + [{"role": "user", "content": user}]
+```
+
+```
+
+## Entities / Components (Python SDK)
+### Agent (fields subset)
+name, instructions/prompt, tools, handoffs, input_guardrails, output_guardrails, output_type, model, model_settings, hooks, tool_use_behavior, reset_tool_choice, mcp_servers, mcp_config.
+### Runner (methods subset)
+run(...), run_sync(...), run_streamed(...).
+### ModelSettings (subset)
+tool_choice, reasoning/temps/top‑p (VERIFY), behavior for non‑GPT‑5 defaults (generic fallback).
+### Result Objects & Items
+RunResult(Base), RunResultStreaming(stream_events), and items: MessageOutputItem, ToolCallItem, ToolCallOutputItem, HandoffCallItem, HandoffOutputItem, ReasoningItem.
+### Streaming Events (Python)
+RawResponsesStreamEvent, RunItemStreamEvent, AgentUpdatedStreamEvent.
+
+## Tools (Hosted, Function, Agents‑as‑Tools)
+### 4.1 Hosted tools (Python & TS)
+**When to use**: fastest path; the LLM calls the tool entirely on OpenAI’s side (no callback to your server), minimizing latency and complexity.
+- **WebSearchTool** – general web search  
+- **FileSearchTool** – retrieval over OpenAI Vector Stores  
+- **ComputerTool** – desktop/browser computer‑use actions  
+- **CodeInterpreterTool** – sandboxed code execution  
+- **HostedMCPTool** – expose a remote MCP server’s tools (and optionally OpenAI **connectors**)  
+- **ImageGenerationTool** – image generation from prompts  
+- **LocalShellTool** – run shell commands locally (debug/ops)
+Python example:
+```python
+
+```python
+from agents import Agent, Runner, WebSearchTool, FileSearchTool
+agent = Agent(
+    name="Researcher",
+    tools=[
+        WebSearchTool(),
+        FileSearchTool(vector_store_ids=["<VECTOR_STORE_ID>"], max_num_results=3),
+    ],
+)
+result = Runner.run_sync(agent, "Compare Spark vs. DuckDB for OLAP, with citations.")
+print(result.final_output)
+```
+
+```
+TypeScript example (OpenAI hosted tools helpers live in `@openai/agents-openai`):
+```ts
+
+```ts
+import { Agent, run } from "@openai/agents";
+import { webSearchTool, fileSearchTool } from "@openai/agents-openai";
+const agent = new Agent({
+  name: "Researcher",
+  tools: [webSearchTool(), fileSearchTool({ vectorStoreIds: ["<VS_ID>"], maxNumResults: 3 })],
+});
+const r = await run(agent, "Summarize the latest on WebGPU runtimes.");
+console.log(r.finalOutput);
+```
+
+```
+**Approvals** (MCP hosted servers): require review before execution—policy `"always" | "never"` or per-tool; supply `on_approval_request` (Python) to programmatically approve/deny.
+### 4.2 Function tools (wrap your code)
+- **Python**: use `@function_tool` to infer schema from args and docstring; optional `output_type` and return typed objects (Pydantic models or dataclasses).  
+- **TypeScript**: define with `tool({... zod schema ...})`; `execute` returns value/JSON; errors raise `ToolCallError`.
+Python:
+```python
+
+```python
+from typing import Annotated
+from pydantic import BaseModel
+from agents import Agent, Runner, function_tool
+class Weather(BaseModel):
+    city: str
+    temperature_c: float
+@function_tool
+def get_weather(city: Annotated[str, "City name"]) -> Weather:
+    """Get current weather for a city."""
+    return Weather(city=city, temperature_c=18.5)
+agent = Agent(name="Met Agent", tools=[get_weather])
+print(Runner.run_sync(agent, "What's the weather in Paris?").final_output)
+```
+
+```
+TypeScript:
+```ts
+
+```ts
+import { z } from "zod";
+import { Agent, run, tool } from "@openai/agents";
+const getWeather = tool({
+  name: "get_weather",
+  description: "Get current weather",
+  parameters: z.object({ city: z.string() }),
+  execute: async ({ city }) => ({ city, temperatureC: 18.5 }),
+});
+const agent = new Agent({ name: "Met Agent", tools: [getWeather] });
+console.log((await run(agent, "Weather in Paris?")).finalOutput);
+```
+
+```
+**Returning files/images**: Python tool outputs can return `agents.FileData` / `agents.ImageData` to stream or attach assets back to the model (see SDK docs).
+**Error handling**: throw exceptions; the agent run will emit `tool_call_error` items which you can catch/log and let the LLM react to, or surface to users.
+### 4.3 Agents as tools
+Wrap an `Agent` as a callable tool without full control transfer—useful for modular skills like translation or classification that don’t need a separate handoff.
+
+## MCP Integration
+MCP standardizes how apps expose tools/context to LLMs. The SDK supports four integrations:
+1) **Hosted MCP (Responses API)** — via `HostedMCPTool`; server label/URL or **connector** (`connector_id`, authorization). Low‑latency, model‑side execution, supports **streaming** results and **tool approval** flows.
+2) **Streamable HTTP MCP** — `MCPServerStreamableHttp` with URL + headers; supports event streaming and retries; can filter tool subsets.
+3) **HTTP with SSE MCP** — `MCPServerSse` to speak Server‑Sent Events flavor.
+4) **stdio MCP** — `MCPServerStdio` to launch a local process and communicate over stdin/stdout (good for local dev or private servers).
+Python (Streamable HTTP) example:
+```python
+
+```python
+from agents import Agent, Runner
+from agents.mcp import MCPServerStreamableHttp
+from agents.model_settings import ModelSettings
+async with MCPServerStreamableHttp(
+    name="My HTTP MCP",
+    params={"url": "http://localhost:8000/mcp", "headers": {"Authorization": "Bearer <TOKEN>"}},
+    cache_tools_list=True,
+) as server:
+    agent = Agent(
+        name="Assistant",
+        instructions="Use the MCP tools to answer.",
+        mcp_servers=[server],
+        model_settings=ModelSettings(tool_choice="required"),
+    )
+    print((await Runner.run(agent, "Add 7 and 22.")).final_output)
+```
+
+```
+**Hosted MCP with Connectors**:
+```python
+
+```python
+from agents import HostedMCPTool
+HostedMCPTool(tool_config={
+    "type": "mcp",
+    "server_label": "google_calendar",
+    "connector_id": "connector_googlecalendar",
+    "authorization": "<OAUTH_BEARER>",
+    "require_approval": "never",
+})
+```
+
+```
+**Tool filtering**: expose only specific server tools (static or dynamic filters) for least privilege.
+
+## MCP Integration (Options)
+HostedMCPTool (server_label/server_url/connector_id/authorization/require_approval), MCPServerStreamableHttp, MCPServerSse, MCPServerStdio, tool filtering.
+
+## Handoffs (Multi‑agent)
+- **Create** with a plain `Agent` or via `handoff(agent, ...)` to customize.  
+- **Customize**: `tool_name_override`, `tool_description_override`, `on_handoff(ctx, input?)`, `input_type`, `is_enabled` (bool or function), and **input filters** to redact/reshape prior history.  
+- **Recommended prompts**: prepend handoff guidance; the SDK ships a helper `RECOMMENDED_PROMPT_PREFIX` (Python) / `handoff(...)` utils (TS).
+Python basics:
+```python
+
+```python
+from pydantic import BaseModel
+from agents import Agent, Runner, handoff
+from agents.extensions import handoff_filters
+class EscalationData(BaseModel):
+    reason: str
+billing = Agent(name="Billing agent")
+refunds = Agent(name="Refunds agent")
+triage = Agent(
+    name="Triage",
+    instructions="Route to Billing or Refunds.",
+    handoffs=[
+      billing,
+      handoff(refunds, input_type=EscalationData, input_filter=handoff_filters.remove_all_tools),
+    ],
+)
+print(Runner.run_sync(triage, "Need a refund for order 123").final_output)
+```
+
+```
+
+## Handoffs (Details)
+handoffs=[...], handoff(target, ...), tool_name_override, input_type, input_filter (agents.extensions.handoff_filters), on_handoff(...), RECOMMENDED_PROMPT_PREFIX.
+
+## Sessions (Memory)
+**Why**: Keep conversation history across runs automatically.  
+**Types**:
+- `SQLiteSession` (in‑memory or file DB) — default/lightweight.  
+- `SQLAlchemySession` — production DBs (Postgres, MySQL, etc.).  
+- `AdvancedSQLiteSession` — branching, usage analytics, structured queries.  
+- `EncryptedSession` — transparent crypto/TTL wrapper for any session.  
+- `OpenAIConversationsSession` — server‑managed conversation threads (OpenAI Conversations API).
+Operations: `get_items()`, `add_items()`, `pop_item()` (undo last turn), `clear_session()`; **branching** from any turn.  
+Example:
+```python
+
+```python
+from agents import Agent, Runner, SQLiteSession
+agent = Agent(name="Concise", instructions="Respond in 1 sentence.")
+session = SQLiteSession("user_42", "conv.db")
+print(Runner.run_sync(agent, "What city is the Golden Gate Bridge in?", session=session).final_output)
+print(Runner.run_sync(agent, "What state is it in?", session=session).final_output)
+```
+
+```
+
+## Results & Streaming
+### 8.1 Results (Python)
+- `final_output`: string or typed object (if `output_type` set).  
+- `new_items`: list of `RunItem`s: `MessageOutputItem`, `ToolCallItem`, `ToolCallOutputItem`, `HandoffCallItem`, `HandoffOutputItem`, `ReasoningItem`.  
+- `last_agent`: agent that produced the final output.  
+- `to_input_list()`: carry inputs into next turn.  
+- `raw_responses`: raw model responses; `input_guardrail_results` / `output_guardrail_results`.
+### 8.2 Streaming
+Two levels:
+- **Raw Responses events** (Responses API deltas) — show token streams immediately.  
+- **Run item & agent events** — emit when a message/tool/handoff completes and when `current agent` changes.
+Python token stream (raw):
+```python
+
+```python
+from openai.types.responses import ResponseTextDeltaEvent
+from agents import Agent, Runner
+result = Runner.run_streamed(Agent(name="Joker", instructions="Tell 3 short jokes."), input="Hello")
+async for ev in result.stream_events():
+    if ev.type == "raw_response_event" and isinstance(ev.data, ResponseTextDeltaEvent):
+        print(ev.data.delta, end="", flush=True)
+```
+
+```
+
+## Streaming (Events)
+RawResponsesStreamEvent, RunItemStreamEvent, AgentUpdatedStreamEvent.
+
+## Tracing (Observability)
+- **Default**: enabled; spans for agents, generations, tools, guardrails, handoffs, speech, etc.  
+- **Control**: disable globally with `OPENAI_AGENTS_DISABLE_TRACING=1`, per‑run via `RunConfig.tracing_disabled=True`, or export with `set_tracing_export_api_key(...)`.  
+- **Custom processors**: add/replace processors to forward traces to W&B Weave, Langfuse, LangSmith, MLflow, AgentOps, etc.
+Python:
+```python
+
+```python
+from agents import trace, Agent, Runner
+with trace("My workflow"):
+    a = Agent(name="Summarizer")
+    b = Agent(name="Critic")
+    r1 = Runner.run_sync(a, "Summarize latest WebGPU news")
+    r2 = Runner.run_sync(b, f"Critique: {r1.final_output}")
+```
+
+```
+**Visualization**: optional `openai-agents[viz]` + `draw_graph(agent, filename="agent_graph")` to render agents/tools/MCP/handoffs via Graphviz.
+
+## Context Management
+Two “contexts”:
+1) **Local context (code‑side)** — use `RunContextWrapper[T]` so tools and hooks receive a typed object with dependencies (e.g., db clients, loggers) and request data. Use `ToolContext` to access tool metadata (`tool_name`, `tool_call_id`, raw args). Data here is **not** sent to the model.
+2) **Agent/LLM context** — what the model sees: instructions, prior messages, and tool outputs. To expose new data to the model, inject via instructions, input messages, retrieval/web search, or function tools.
+Python tool using context:
+```python
+
+```python
+from dataclasses import dataclass
+from agents import Agent, Runner, function_tool, RunContextWrapper
+@dataclass
+class ReqCtx: user_id: str
+@function_tool
+def whoami(ctx: RunContextWrapper[ReqCtx]) -> str:
+    return f"user={ctx.context.user_id}"
+agent = Agent[ReqCtx](name="Echo", tools=[whoami])
+Runner.run_sync(agent, "Who am I?", context=ReqCtx(user_id="u-123"))
+```
+
+```
+
+## Security, Guardrails & Compliance
+- **Guardrails** (open‑source): checks voor jailbreak/prompt‑injectie, PII‑masking/‑redaction, policy‑filters.  
+- **Least privilege**: beperk tool‑rechten; markeer write‑acties als destructief → vereis **User approval**.  
+- **AuthN/Z**: per MCP‑tool/connector; gebruik domain verification, IP allowlisting (Enterprise), en connector‑policies.  
+- **Audit & logs**: tracing, evals, en eventuele compliance‑API’s (enterprise).  
+- **Data residency/ZDR**: raadpleeg workspace‑instellingen en model‑opties.
+
+## Guardrails (SDK)
+- **Input guardrails** run before the first agent in a run; **Output guardrails** run after the last agent.  
+- Implement a guardrail function that returns `{ output_info, tripwire_triggered }`. If triggered, the SDK raises `InputGuardrailTripwireTriggered`/`OutputGuardrailTripwireTriggered` and halts.  
+- Compose with fast/cheap models for early rejection; log `output_info` for auditing.
+Python (input):
+```python
+
+```python
+from pydantic import BaseModel
+from agents import Agent, input_guardrail, GuardrailFunctionOutput, Runner, RunContextWrapper
+class IsHomework(BaseModel): is_math_homework: bool; reasoning: str
+guardrail_agent = Agent(name="Check", instructions="Is user asking math homework?", output_type=IsHomework)
+@input_guardrail
+async def homework_guard(ctx: RunContextWrapper, agent: Agent, input: str) -> GuardrailFunctionOutput:
+    res = await Runner.run(guardrail_agent, input, context=ctx.context)
+    return GuardrailFunctionOutput(output_info=res.final_output, tripwire_triggered=res.final_output.is_math_homework)
+agent = Agent(name="Support", input_guardrails=[homework_guard])
+```
+
+```
+
+## Rules / Constraints / Conditions
+Guardrails location (first/last agent), ZDR tracing constraints, hosted tools availability, non‑GPT‑5 model settings fallback, MaxTurnsExceeded.
+
+## Orchestration Patterns
+Two complementary patterns:
+1) **Let the LLM orchestrate** with tools + handoffs. Works best with strong prompts, clear tool specs, and specialized sub‑agents. Use evals & tracing to iterate.
+2) **Orchestrate in code**: deterministic pipelines, e.g., structured outputs + routers, `while` loops with evaluator feedback, or run independent steps in parallel (e.g., `asyncio.gather`) and pick top result.
+Patterns:
+- Deterministic “plan → act → reflect” with distinct agents.  
+- Router agent that classifies then **handoffs** to specialists.  
+- Parallel tool calls with a **critic** that selects best candidate.  
+- Canary rollouts: run new prompt/agent on a fraction of traffic; compare usage/quality signals.
+
+## Processes / Workflows / Interactions
+Agent loop (LLM → tools → handoff → repeat); tool use behavior (run again vs stop on first tool/StopAtTools); orchestration patterns (LLM‑ vs code‑driven).
+
+## Practical Patterns & Recommendations
+Structured outputs; guardrails on fast models; handoffs with input_filter; hosted MCP with approvals; tracing in dev; streams for UX.
+
+## Usage & Cost Tracking
+Each run aggregates:
+- `requests`, `input_tokens`, `output_tokens`, `total_tokens`  
+- details: `input_tokens_details.cached_tokens`, `output_tokens_details.reasoning_tokens` (where supported)
+Python:
+```python
+
+```python
+result = Runner.run_sync(Agent(name="A"), "Hi")
+u = result.context_wrapper.usage
+print(u.requests, u.total_tokens)
+```
+
+```
+**LiteLLM** users: pass `ModelSettings(include_usage=True)` to populate usage.
+
+## Troubleshooting & Issues
+- **File search node errors** — controleer of de gebruikte vectorstore toegankelijk is en of ingest is voltooid; val desnoods terug op een MCP‑tool die dezelfde store aanspreekt.  
+- **ChatKit lokaal testen** — controleer sessie‑/secret‑initialisatie en ondersteunde events; sommige functies vereisen organisatie‑/workspace‑rechten.  
+- **Connector zichtbaar maar geen tools** — check registry‑/rolrechten en developer‑mode voor custom MCP.  
+- **While‑loops hangen** — stel een max‑iteratie in en log `next_cursor`/tellers in state.
+
+## Exceptions & Edge Cases
+MaxTurnsExceeded, InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered; StopAtTools; reset_tool_choice; session_input_callback.
+
+## ChatKit — Embedding Agent UI
+**Wat is het?** Een set widgets (chat, formulieren, knoppen, tabellen) en **actions** om gebruikersinteractie te koppelen aan agent‑runs of MCP‑tools.  
+**Pattern**: render widgets → vang events (bijv. `onSubmit`) → **callTool** of start een agent‑run → toon resultaten inline.
+**Voorbeeld (actie op button in een Form):**
+```tsx
+
+```tsx
+// in een ChatKit widget
+<Form>
+  <TextInput name="query" label="Zoekvraag" />
+  <Button onClick={{ action: "search", argsFrom: "form" }}>Zoek</Button>
+</Form>
+```
+
+```
+De gekoppelde action roept je MCP‑tool of server aan; je kunt daarna `sendFollowUpMessage` sturen of de UI bijwerken.
+
+## Deep Research — Patterns & Examples
+**Wanneer gebruiken?** Voor complexe vragen die **planning, websearch, lezen van veel bronnen** en **synthese met citaties** vereisen. Niet voor triviale Q&A (pak dan een standaard Responses‑call).
+**Basispatroon (single‑agent):**
+```python
+
+```python
+from agents import Agent, Runner, WebSearchTool
+agent = Agent(
+    name="DeepResearch",
+    model="o4-mini-deep-research-2025-06-26",
+    tools=[WebSearchTool()],
+    instructions="Maak een gestructureerd rapport met sectiekoppen en citaties.",
+)
+result = await Runner.run(agent, "Impact van semaglutide op mondiale zorgkosten")
+print(result.final_output)
+```
+
+```
+**Multi‑agent patroon (prompt‑verrijking → research):**
+1) **Clarifier** verfijnt vraag & verwacht output‑format.  
+2) **Instruction‑writer** construeert strikte richtlijnen (headers/tables).  
+3) **Research agent** voert deep research uit en geeft citaties.  
+4) **Verifier** checkt claims en bronconsistentie; bij twijfel → **User approval**.
+**Best practices:**
+- Geef **expliciet format** (koppen/tabellen) en **scope‑grenzen**.  
+- Gebruik **guardrails** om claims zonder bron te markeren.  
+- Log tussenstappen (search queries) voor auditability.  
+- Sla citaties als gestructureerde velden in state op.
+
+## RAG & Ingest Guidelines
+**Chunking**: 800–1.200 tokens, 10–15% overlap; splits **nooit** codeblokken/tabellen.  
+**Metadata per chunk** (aanrader):  
+`source_url, title, publish_date, retrieved_at, product (AgentBuilder|AgentKit|Shared), version_or_api_date, section_path, feature_flag_or_status (GA|Preview|Deprecated), entity_type (API|SDK|UI|Concept|Pattern|Limit|Error), sdk_lang (js|py|—), region_or_availability_notes, license, hash`
+**Embedding‑notities**: normaliseer whitespace; behoud code fences; verwijder navigatie/trackers; laat anchors intact.  
+**QA‑seeds**: voeg 1–3 Q/A‑parafrasen per chunk toe om retrieval te verbeteren.
+
+## End‑to‑End Examples
+### 19.1 Multi‑agent router (Python)
+```python
+
+```python
+from pydantic import BaseModel
+from agents import Agent, Runner, handoff
+class Answer(BaseModel): answer: str
+faq = Agent(name="FAQ", instructions="Answer FAQs from policy.", output_type=Answer)
+billing = Agent(name="Billing", instructions="Handle billing issues.", output_type=Answer)
+router = Agent(
+    name="Router",
+    instructions=(
+        "Classify the request into {faq,billing}. "
+        "If billing, handoff to Billing; else answer or handoff to FAQ."
+    ),
+    handoffs=[faq, billing],
+)
+print(Runner.run_sync(router, "How do I update my card?").final_output)
+```
+
+```
+### 19.2 Hosted MCP with approval (Python)
+```python
+
+```python
+from agents import Agent, Runner, HostedMCPTool, MCPToolApprovalRequest, MCPToolApprovalFunctionResult
+SAFE_TOOLS = {"read_metadata"}
+def approve(req: MCPToolApprovalRequest) -> MCPToolApprovalFunctionResult:
+    return {"approve": req.data.name in SAFE_TOOLS, "reason": "Escalate if not safe"}
+agent = Agent(
+    name="Ops",
+    instructions="Use the gitmcp tool to inspect repos.",
+    tools=[HostedMCPTool(tool_config={"type": "mcp", "server_label": "gitmcp", "server_url": "https://gitmcp.io/openai/codex", "require_approval": "always"}, on_approval_request=approve)],
+)
+print(Runner.run_sync(agent, "Summarize the repo's top languages.").final_output)
+```
+
+```
+### 19.3 Streaming UI skeleton (TS)
+```ts
+
+```ts
+import { Agent, run } from "@openai/agents";
+const agent = new Agent({ name: "Reporter", instructions: "Write updates as you go." });
+const result = await run(agent, "Give me 3 news bullets about WebGPU.");
+for await (const ev of (await result).streamEvents()) {
+  if (ev.type === "raw_model_event" && ev.data.type === "response.output_text.delta") {
+    process.stdout.write(ev.data.delta);
+  }
+}
+```
+
+```
+### 19.4 Session with corrections (Python)
+```python
+
+```python
+from agents import Agent, Runner, SQLiteSession
+a = Agent(name="Concise")
+s = SQLiteSession("sess1", "conv.db")
+Runner.run_sync(a, "Paris is in Germany?", session=s)
+s.pop_item(); s.pop_item()  # remove assistant + user
+print(Runner.run_sync(a, "Paris is in France, right?", session=s).final_output)
+```
+
+```
+
+## Examples / Use Cases (SDK)
+Minimal Agent, Agent + function tool, Handoffs, Streaming, Hosted MCP.
+
+## Commands Cheat Sheet
+- Python: installs/extras/env; config helpers
+- JS/TS: npm install, OPENAI_API_KEY, Node 22+
+
+## Source Map
+> **Tip for RAG**: keep these URLs with your chunks; store `publish_date`, `retrieved_at`, `section_path`, `entity_type`, `feature_status`, and a short `hash` of the content.
+- **Python docs – Agents SDK** (guides & API):  
+  - Agents, Running agents, Tools, MCP, Handoffs, Sessions, Results, Streaming, Tracing, Context, Models, Usage, Visualization.  
+  - https://openai.github.io/openai-agents-python/
+- **TypeScript docs – Agents SDK** (guides & API):  
+  - Tools, Handoffs, Models, Streaming, Human‑in‑the‑loop, Tracing, Config, API Reference packages.  
+  - https://openai.github.io/openai-agents-js/
+- **OpenAI blog – Introducing AgentKit** (context: Agent Builder, ChatKit, Evals; relation to Responses & Agents SDK):  
+  - https://openai.com/index/introducing-agentkit/
+- **GitHub – openai-agents-js** (examples & README):  
+  - https://github.com/openai/openai-agents-js
+> Include additional deep links to specific sections you ingest (e.g., `/tools/`, `/mcp/`, `/handoffs/`, `/sessions/`, `/models/`).
+
+## Source Map (AgentKit/Builder)
+> Officiële documenten en cookbooks zijn primair. Community‑posts worden alleen gebruikt ter verduidelijking van UI/gedrag en bekende issues.
+**AgentKit & Agent Builder**
+- Introducing AgentKit — OpenAI (product blog, 2025‑10‑06) — https://openai.com/index/introducing-agentkit/
+- Agent platform overview — https://openai.com/agent-platform/
+- Developers: Agents topic/track — https://developers.openai.com/topics/agents/
+**Deep Research**
+- Introducing deep research — https://openai.com/index/introducing-deep-research/
+- Deep Research API (cookbook) — https://cookbook.openai.com/examples/deep_research_api/introduction_to_deep_research_api
+- Deep Research + Agents SDK (cookbook) — https://cookbook.openai.com/examples/deep_research_api/introduction_to_deep_research_api_agents
+**Models**
+- GPT‑5 prompting & new params (cookbooks) — https://cookbook.openai.com/examples/gpt-5/gpt-5_prompting_guide ; https://cookbook.openai.com/examples/gpt-5/gpt-5_new_params_and_tools
+- GPT‑5 System Card (PDF) — https://cdn.openai.com/gpt-5-system-card.pdf
+- o3 / o4‑mini model pages — https://platform.openai.com/docs/models/o3 ; https://platform.openai.com/docs/models/o4-mini
+- GPT‑4.1 family — https://platform.openai.com/docs/models/gpt-4.1
+**Built‑in tools & Retrieval**
+- Built‑in tools docs — https://platform.openai.com/docs/api-reference/uploads/add-part (navigatie naar built‑in tools)
+- Retrieval & vector stores — https://platform.openai.com/docs/guides/retrieval ; https://platform.openai.com/docs/api-reference/usage/vector_stores_object
+**ChatKit**
+- ChatKit actions guide — https://platform.openai.com/docs/guides/chatkit-actions
+- Developers hub (ChatKit starter/advanced samples) — https://developers.openai.com/resources/code/
+**Guardrails & Safety**
+- Guardrails docs (OpenAI) — https://guardrails.openai.com/docs/
+- Jailbreak detection reference — https://guardrails.openai.com/docs/ref/checks/jailbreak/
+- Building guardrails for agents (guides/cookbooks) — https://developers.openai.com/tracks/building-agents/ ; https://cookbook.openai.com/topic/guardrails
+- Practical guide to building agents (PDF) — https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf
+**Connector Registry / Connectors**
+- Connectors in ChatGPT (help) — https://help.openai.com/en/articles/11487775-connectors-in-chatgpt
+- AgentKit blog (Connector Registry sectie) — https://openai.com/index/introducing-agentkit/
+**SDK’s & voorbeelden**
+- Agents SDK (Python/TS) — https://github.com/openai/openai-agents-python ; https://developers.openai.com/topics/agents/
+- Background mode — https://platform.openai.com/docs (zoek: background mode)
+- Agents tracing/evals cookbook — https://cookbook.openai.com/examples/agents_sdk/evaluate_agents
+**Bekende issues / community**
+- Agent Builder “Get started” thread — https://community.openai.com/t/how-to-get-started-with-agent-builder/1361280
+- File search node error reports — https://community.openai.com/t/agentbuilder-file-search-node-always-errors-vector-store-works-as-a-tool/1362024
+- ChatKit localhost/testing threads — https://community.openai.com/t/trying-chatkit-on-localhost/1361351
+
+## Revision History
+- **v1 (2025‑10‑16)** — First full pass (Python & TS), aligned to Agents SDK docs; added hosted tools list, MCP transports, sessions, streaming, tracing, guardrails, orchestrations, and end‑to‑end examples.
+
+
+## Part B — Consolidated Knowledge Compendium
+
+_Source_: **openai_agentkit_agents_sdk_full_compendium (1).md**
+
+# OpenAI AgentKit, Agent Builder, and Agents SDK — Consolidated Knowledge Compendium
+
+**Version:** 2025-10-18 15:37 UTC
+**Provenance:** Consolidated from this chat session. Includes (1) the user's *Deep Knowledge Extractor* task specification and rules, (2) the comprehensive AgentKit/Agent Builder/Agents SDK knowledge document, and (3) the detailed Agents SDK code‑level reference.  
+**Deduplication Policy:** All **unique** information is preserved. Where the same fact appeared in multiple places, a **canonical entry** is kept and duplicates are replaced by cross‑references in this compendium. *No unique details from the chat have been removed.*
+
+> **Note on Citations:** Some sections contain inline citation markers (e.g., `【6†L129-L137】` or `citeturn…`) that appeared in the original responses. They are preserved here to maintain fidelity to the source text in the chat. They may not resolve as live links in this standalone file.
+
+## 0) Task Specification from the User (Deep Knowledge Extractor Agent)
+
+**Instruction (verbatim from chat):**
+
+> You are a Deep Knowledge Extractor Agent.  
+> Your task is to create a complete, exhaustive, duplication-free knowledge document about the given topic(s). YOU MAKE THIS DOCUMENT IN CANVAS.  
+> This document must serve as a foundation for LLM training, validation, and research, therefore every factual, structural, and contextual element must be included — not summarized.
+>
+> **Rules**
+> - Include everything that is relevant: concepts, components, fields, parameters, rules, processes, examples, metrics, relationships, and exceptions.
+> - Do not summarize or paraphrase; capture the full factual content.
+> - If multiple sources overlap, merge and deduplicate, keeping the most complete version.
+> - If something is unclear or missing, mark it as VERIFY:.
+> - Remain objective and factual — no interpretation, speculation, or opinion.
+> - Output must be structured, machine-readable, and suitable for fine-tuning.
+>
+> **Structure**
+> Use a logical hierarchy such as:
+> - Overview
+> - Key Concepts & Terminology
+> - Entities / Components / Modules
+>   - Name
+>   - Description
+>   - Attributes / Fields / Properties
+>   - Relationships / Dependencies
+> - Processes / Workflows / Interactions
+> - Rules / Constraints / Conditions
+> - Exceptions / Edge Cases
+> - Metrics / Calculations / KPIs
+> - Examples / Use Cases
+> - References / Source Map
+> - Add or adjust sections if the domain requires (e.g., algorithms, data models, legal frameworks).
+>
+> **Output Format**
+> - Produce the document in Markdown text, using headings, bullet points, and tables for clarity.
+> - Example table format:  
+>   **Entity: ExampleItem**  
+>   | Field | Type | Description | Source |  
+>   |---|---|---|---|  
+>   | ID | String | Unique identifier | SOURCE: Official doc |
+>
+> **Quality and Coverage**
+> - Must be complete (no omissions).
+> - Must be consistent (uniform naming and formatting).
+> - Must be structured (easy to parse and extend).
+>
+> **If the topic is large, split the output into multiple volumes (Volume 1–N).**
+>
+> **Perform a final deduplication pass to remove redundant entries.**
+>
+> **Final Instruction**
+> - Perform deep factual extraction.
+> - Include every known element related to the topic.
+> - Do not stop early or shorten the output — continue until all relevant knowledge is represented.
+> - End only when the entire domain is covered.
+
+# Volume 1 — OpenAI AgentKit, Agent Builder, and Agents SDK (Comprehensive Knowledge)
+
+## 1. Overview
+OpenAI **AgentKit** is a comprehensive platform introduced in late 2025 that provides end-to-end tools for building, deploying, and optimizing AI agents【6†L129-L137】【30†L55-L60】. It was unveiled at OpenAI’s DevDay 2025 as a “ChatGPT with hands” – moving beyond static chat toward agents that take actions in multi-step workflows【30†L53-L60】. AgentKit unifies earlier OpenAI experiments like *Operator* and *Deep Research* into one structured, safer system for agent behavior【30†L55-L60】. The goal is to let developers and enterprises create AI systems that **not only generate text but also perform tasks** using tools (e.g., browsing, executing code, calling APIs) and multi-step logic【4†L47-L55】【6†L129-L138】. This platform addresses the pain points of earlier agent development (scattered tools, fragile prompts, custom orchestration, and heavy frontend work) by offering an integrated solution【30†L64-L72】【6†L129-L137】.
+
+**AgentKit Components:** AgentKit consists of several key components and building blocks【6†L135-L142】: 
+- **Agent Builder:** a visual drag-and-drop canvas for designing and versioning agent workflows【6†L135-L143】. 
+- **Agents SDK:** a code-first SDK (in Python, Node/TypeScript, etc.) for programmatically orchestrating single or multi-agent workflows【16†L175-L183】【25†L293-L301】.
+- **Connector Registry:** an admin interface for managing data connectors and tool integrations across the platform【6†L136-L144】【6†L192-L200】.
+- **ChatKit:** a toolkit to embed agent-powered chat UIs into apps or websites, with customization for branding【6†L139-L142】【6†L208-L216】.
+- **Built-in Tools:** a set of OpenAI-provided tools (web search, file search, code execution, etc.) that agents can use to access information or perform actions【13†L148-L156】【32†L195-L203】.
+- **Guardrails:** an open-source safety layer for enforcing constraints and policies in agents’ inputs/outputs【6†L197-L203】.
+- **Evals & Optimization:** integrated evaluation tools to measure agent performance (datasets, trace grading, prompt optimization) and reinforcement fine-tuning (RFT) to improve reasoning and tool use【8†L242-L250】【34†L278-L287】.
+
+By combining these, AgentKit allows faster development of **agentic AI applications** – from a visual idea on the canvas to a live chat agent with a front-end, plus ongoing evaluation loops【6†L129-L138】【16†L148-L157】. AgentKit is positioned as a unified platform where one can **build** workflows (visually or in code), **deploy** them in user-facing interfaces, and **optimize** them through testing and fine-tuning, all within OpenAI’s ecosystem【16†L148-L157】【16†L160-L168】.
+
+## 2. Key Concepts & Terminology
+
+- **Agent:** An AI system (typically powered by an LLM) configured to **independently accomplish tasks on behalf of users**【13†L134-L142】. Agents can perform multi-step reasoning, use tools, and make decisions in a loop until a goal is achieved. Each agent has instructions (defining its role/behavior), can have access to tools or external actions, and can even delegate to other agents【25†L305-L313】.
+
+- **AgentKit:** The *full suite of tools* OpenAI provides for agent development【6†L129-L137】. It encompasses the visual Agent Builder, Agents SDK, Connector Registry, ChatKit, and enhanced evals. AgentKit enables **action-oriented agents** that carry out tasks with real-world effects【4†L47-L55】【30†L53-L60】.
+
+- **Agent Builder:** The visual, no-code/low-code interface for designing agent logic and workflows【6†L155-L163】. Provides a canvas with **nodes** (LLM agents, tool calls, conditional logic, user-approval, data transforms) and connections to define flow; supports preview runs, inline evals, and versioning【6†L157-L165】. *(Beta as of late 2025【34†L293-L299】.)*
+
+- **Agents SDK:** The **code-first framework** for implementing agents and orchestration in Python and TypeScript/Node【16†L181-L189】【25†L293-L301】. Offers abstractions to define agents, attach tools, enforce guardrails, trace execution, manage sessions, and perform **handoffs** between agents【25†L305-L313】【23†L423-L431】. Designed to work with OpenAI’s **Responses API** and other compatible providers【11†L670-L678】.
+
+- **Responses API:** A unified API (introduced March 2025) that combines conversational LLM capabilities with **native tool use** (e.g., web search, file search, code interpreter) and yields a single streamable result with the model’s outputs and tool results【13†L145-L176】【13†L178-L186】. Intended to supersede older Assistants API when feature parity is met【13†L199-L218】.
+
+- **Built-in Tools:** Discrete capabilities the agent can invoke during runs: **Web Search**, **File Search**, **Code Interpreter**, **Image Generation**, **Computer Use (CUA)**, and **Connectors/MCP** for external services【13†L148-L156】【32†L195-L232】.
+
+- **Connector Registry:** Centralized admin for configuring connectors (Dropbox, Google Drive, Salesforce, etc.) once and enabling them across ChatGPT Enterprise and API projects【6†L192-L200】. Requires Global Admin Console; launched in beta【34†L293-L299】.
+
+- **ChatKit:** Embeddable chat UI toolkit to deliver agent workflows to users with minimal front-end work; supports streaming, tool action display, branding, and multi-turn threads【6†L208-L216】【6†L217-L223】.
+
+- **Guardrails:** Open-source safety/validation layer (and a Builder node) to enforce policies, detect PII/prompt injection, and validate formatting; can block/divert flows on violations【6†L197-L203】【27†L215-L223】.
+
+- **Handoff:** A specialized tool-like mechanism to transfer control to another agent mid-interaction (e.g., triage → Spanish agent)【25†L307-L315】【23†L384-L392】【11†L619-L627】.
+
+- **Sessions:** Conversation state persistence (SQLite, Redis, etc.) so multi-turn interactions retain context automatically【23†L481-L507】【23†L524-L532】.
+
+- **Tracing & Observability:** Automatic traces of prompts, tool calls, handoffs, and outputs; integrable with external observability providers; useful for debugging and optimization【25†L463-L471】.
+
+- **Evals:** Evaluation framework extended for agents: datasets, trace grading, custom graders, and prompt optimization; supports reinforcement fine-tuning (RFT) to improve tool use and adherence to success criteria【8†L242-L258】【34†L278-L287】.
+
+- **Reinforcement Fine-Tuning (RFT):** RL-based tuning for better tool usage and domain performance; support for **Custom Tool Calls** and **Custom Graders**; GPT‑5 RFT in closed beta as of 2025【34†L278-L287】.
+
+- **Global Admin Console:** Enterprise org-level management; required for enabling **Connector Registry** (Global Owner privileges)【34†L293-L299】.
+
+- **Workflows API (Planned):** Future programmatic control of Agent Builder workflows and deployment into ChatGPT; not yet available【34†L299-L304】.
+
+## 3. Components and Modules
+
+### 3.1 Agent Builder (Visual Workflow Designer)
+- **Canvas & Nodes:** Visual flow of **nodes** connected by edges. Node categories:
+  1) **Core:** Start, Agent, Note【27†L189-L208】  
+  2) **Tool:** File Search, Guardrails, MCP【27†L208-L227】  
+  3) **Logic:** If/Else, While, User Approval (human-in-the-loop)【27†L232-L250】  
+  4) **Data:** Transform, Set State【28†L253-L265】
+- **Connecting Nodes:** Define execution sequence and branching; implicit end when final agent response produced.
+- **Guardrails & Error Handling:** Guardrail node can block/divert flow on policy violations (e.g., to an apology agent).【27†L215-L223】
+- **Preview/Evaluation:** Live preview runs with intermediate outputs, inline eval configuration, and workflow versioning【6†L157-L165】.
+- **Templates:** Pre-built templates to jumpstart common use cases【6†L169-L177】.
+- **Current Limitations:** Primarily **chat-triggered** workflows (no background triggers/schedules)【27†L119-L131】; **hosted-only** (no on‑prem); fewer third‑party integrations vs. mature automation platforms【28†L284-L308】.
+
+### 3.2 Agents SDK (Code-First Framework) — *High-Level Overview*
+- **Purpose:** Programmatic orchestration of single and **multi-agent** workflows with tools, handoffs, guardrails, sessions, tracing; async/sync/streaming execution【11†L519-L639】【25†L305-L313】.
+- **Core Abstractions:** `Agent`, `Runner`, `Tool` (function/hosted/agent-as-tool), `Guardrail`, `Handoff`, `Session`, `Trace`【25†L305-L313】【23†L423-L471】.
+- **Loop Semantics:** LLM call → (final output?) → handoff? → tool(s)? → repeat until final output or `max_turns`【23†L425-L445】.
+- **Provider-Agnostic:** Works with OpenAI Responses and compatible providers (e.g., via LiteLLM model adapter)【11†L670-L678】.
+
+### 3.3 Connector Registry & MCP 
+- **Registry:** Central admin to configure connectors once for use across ChatGPT/API; governance for data/tools access【6†L192-L200】.
+- **MCP (Model-Context Protocol):** Standard for exposing external tools/context; enables agents to call third-party actions via MCP servers (hosted or local)【27†L221-L227】【20†L1064-L1073】.
+
+### 3.4 ChatKit (Deployment UI Toolkit)
+- **Embed:** Plug‑and‑play chat UI with streaming, tool-action visualization, multi-turn threads.
+- **Branding:** Theming to match app look & feel【6†L208-L216】.
+- **Impact:** Reduces frontend build time significantly (e.g., Canva saved >2 weeks)【6†L217-L223】.
+
+### 3.5 Built-in Tools (via Responses API)
+- **Web Search, File Search, Code Interpreter, Image Generation, Computer Use (CUA)**, and **Connectors/MCP**【13†L148-L156】【32†L195-L232】.
+- **Billing:** Tool calls incur additional metered costs (e.g., per search/GB/day for file storage)【10†L383-L391】【27†L113-L121】.
+
+### 3.6 Evals & Optimization
+- **Datasets & Graders:** Build datasets; run trace grading; use custom graders; observe metrics like accuracy, completion rate, tool usage【34†L247-L258】【32†L261-L267】.
+- **Prompt Optimizer:** Automated suggestions to improve instructions from eval findings【34†L252-L258】.
+- **RFT:** Reinforcement fine-tuning (o4‑mini GA; GPT‑5 closed beta)【34†L277-L287】.
+
+## 4. Processes & Workflows
+
+### 4.1 End-to-End Lifecycle
+1) **Design/Build** (Agent Builder or SDK; set model, instructions, tools, guardrails; configure connectors).  
+2) **Test/Preview** (interactive runs; inspect intermediate steps/traces).  
+3) **Deploy** (ChatKit embed or API endpoint).  
+4) **Interact** (multi-turn sessions with memory).  
+5) **Observe** (traces, logs).  
+6) **Evaluate** (Evals datasets/graders, prompt optimizer).  
+7) **Optimize** (prompt tuning, guardrails, RFT).  
+8) **Version** (roll forward/back as needed).  
+9) **Repeat** (continuous improvement).
+
+### 4.2 Human Handoff / Fallback
+- Use **User Approval** nodes or workflow logic to route to humans when confidence low or guardrails trip; log for audit.
+
+## 5. Examples / Use Cases
+- **Customer Support:** *Klarna* agent resolves ~⅔ of tickets autonomously【6†L147-L151】.  
+- **Sales Prospecting:** *Clay* agent helps achieve **10× growth**【6†L147-L152】.  
+- **Finance Research:** *Carlyle* due‑diligence agents: **30% accuracy↑**, **50% dev time↓**【34†L259-L267】.  
+- **Developer Support:** *Canva* dev-docs agent via ChatKit【6†L217-L223】.  
+- **Enterprise Search:** *Box, Inc.* agents unify internal files + web search【11†L659-L668】.  
+- **RPA-like Automation:** *Luminai* uses Computer‑Use tool to automate legacy workflows【10†L474-L482】.  
+- **On‑chain Agents:** *Coinbase* integrates domain tools via SDK within hours【11†L648-L657】.  
+- **Multilingual Triage:** Handoff between Spanish/English agents based on input language【23†L374-L392】.
+
+## 6. Constraints & Considerations
+- **Beta components:** Agent Builder & Connector Registry (limited availability)【34†L293-L299】.
+- **Reliability:** CUA success ~38% on general OS tasks; requires oversight/approval for high-stakes actions【10†L394-L402】【10†L483-L500】.
+- **Security/Privacy:** Use least-privilege connectors; guardrails; understand data handling (OpenAI states default non-training on business data)【13†L181-L189】.
+- **Automation Parity:** Fewer integrations/triggers than Zapier/n8n/UiPath as of 2025【28†L284-L308】.
+- **Vendor Lock-in vs Open:** Hosted platform; SDK is open-source and model-agnostic for portability【11†L670-L678】【25†L293-L301】.
+- **Cost:** Token + tool usage; monitor with traces/evals and design efficient workflows【10†L383-L391】.
+- **Future:** Workflows API; deeper ChatGPT deployments; improved tool‑use reasoning with newer models【34†L299-L304】.
+
+## 7. References / Source Map (from Volume 1)
+- OpenAI Product Announcements & Docs for Responses API, AgentKit (Agent Builder, Connector Registry, ChatKit), Evals/RFT; Open-source SDK repos (Python/JS); case studies (Klarna, Clay, Ramp, Coinbase, Box, Carlyle, Luminai). (Inline markers like `【...】` reflect the original chat’s citation placeholders.)
+
+# Volume 2 — OpenAI Agents SDK (Code‑Level Reference, Deduplicated)
+
+> **Deduplication Note:** Definitions and high‑level descriptions (Agent, Runner, Tools, Guardrails, Handoffs, Sessions, Tracing, Streaming) are **canonical in Volume 1**. This volume focuses on **library names, installation commands, public APIs, parameters, events, exceptions, configuration, and code examples**. Where overlaps existed, duplicated prose has been omitted and replaced by references to Volume 1.
+
+## 1) Libraries & Installation
+
+### Python
+- **Package:** `openai-agents` (PyPI)  
+- **Python:** 3.9+  
+- **Install:**  
+  - `pip install openai-agents`  
+  - `uv add openai-agents`  
+- **Extras:**  
+  - Voice: `pip install "openai-agents[voice]"`  
+  - Redis sessions: `pip install "openai-agents[redis]"`  
+- **Hello world (sync):**
+
+```py
+  from agents import Agent, Runner
+  agent = Agent(name="Assistant", instructions="You are a helpful assistant")
+  print(Runner.run_sync(agent, "Write a haiku about recursion.").final_output)
+  ```
+
+```
+  (Per official SDK README.) citeturn24view0
+
+### JavaScript / TypeScript
+- **Package:** `@openai/agents` (npm)  
+- **Runtime:** Node.js **22+** (Deno/Bun supported; Workers with `nodejs_compat`)  
+- **Install:** `npm install @openai/agents zod@3`  
+- **Hello world:**
+  ```ts
+
+```ts
+  import { Agent, run } from '@openai/agents';
+  const agent = new Agent({ name: 'Assistant', instructions: 'You are a helpful assistant' });
+  const result = await run(agent, 'Write a haiku about recursion in programming.');
+  console.log(result.finalOutput);
+  ```
+
+```
+  citeturn25view0
+
+## 2) Python SDK Entities & APIs (Details)
+
+### 2.1 Agent (fields)
+| Field | Type | Description |
+|---|---|---|
+| `name` | `str` | Identifier used in logs and default handoff tool name. |
+| `instructions` | `str \| Prompt \| Callable` | System prompt or builder for behavior. |
+| `prompt` | `Prompt \| Callable \| None` | Optional custom prompt object/function. |
+| `tools` | `list[Tool]` | Function tools, hosted tools, or agent-as-tool. |
+| `handoffs` | `list[Agent \| Handoff]` | Agents or `handoff()` descriptors to transfer control. |
+| `input_guardrails` | `list[Guardrail]` | Run on **initial** input of **first** agent. |
+| `output_guardrails` | `list[Guardrail]` | Run on **final** output of **last** agent. |
+| `output_type` | `type \| AgentOutputSchemaBase` | Structured output schema; loop ends when matched. |
+| `model` | `str \| Model` | Model ID or provider adapter. |
+| `model_settings` | `ModelSettings` | Tool-choice policy, reasoning knobs, etc. |
+| `hooks` | `AgentHooksBase \| None` | Lifecycle hooks. |
+| `tool_use_behavior` | `'run_llm_again' \| 'stop_on_first_tool' \| StopAtTools \| Callable` | Controls post-tool behavior. |
+| `reset_tool_choice` | `bool` | Reset tool choice between turns. |
+| `mcp_servers` | `list[MCPServer]` | Attach MCP servers (stdio/HTTP/SSE/streamable). |
+| `mcp_config` | `MCPConfig` | Schema strictness and behavior for MCP calls. |
+(See Volume 1 §2 and §3.2 for conceptual overview.) citeturn17view0
+
+### 2.2 Runner
+**Entry points**
+| Method | Summary |
+|---|---|
+| `Runner.run(...)` | Async execution loop to final output/handoff/error. |
+| `Runner.run_sync(...)` | Sync wrapper. |
+| `Runner.run_streamed(...)` | Streaming mode returning `RunResultStreaming`. |
+(Loop semantics in Volume 1 §3.2 and §4.1.) citeturn19view0
+
+**RunConfig (selected)**
+| Field | Purpose |
+|---|---|
+| `model`, `model_provider`, `model_settings` | Override model/settings per run. |
+| `handoff_input_filter` | Filter history for target agent upon handoff. |
+| `input_guardrails` / `output_guardrails` | Per-run overrides. |
+| `tracing_disabled`, `trace_include_sensitive_data` | Control tracing/privacy. |
+| `workflow_name`, `trace_id`, `group_id`, `trace_metadata` | Trace grouping and metadata. |
+| `session_input_callback` | Customize session-added inputs. |
+| `call_model_input_filter` | Per-call model input filter. |
+citeturn19view0
+
+### 2.3 ModelSettings (subset)
+| Field | Description |
+|---|---|
+| `tool_choice` | `'auto'`, `'required'`, etc., to drive tool policy. |
+| **VERIFY:** other knobs (reasoning temps, top‑p, etc.) per SDK reference. |
+Note: Non‑GPT‑5 models may cause defaults to switch to generic settings. citeturn17view0
+
+### 2.4 Result Objects
+| Class | Purpose |
+|---|---|
+| `RunResultBase` | Base container: `final_output`, `last_agent`, `new_items`, `raw_responses`, `input`. |
+| `RunResult` | Returned from `run` / `run_sync`. |
+| `RunResultStreaming` | Returned from `run_streamed`; supports `.stream_events()`. |
+**Items:** `MessageOutputItem`, `ToolCallItem`, `ToolCallOutputItem`, `HandoffCallItem`, `HandoffOutputItem`, `ReasoningItem`. citeturn13view0
+
+### 2.5 Streaming Events
+- `RawResponsesStreamEvent` — low‑level Responses delta events (e.g., token text deltas).  
+- `RunItemStreamEvent` — high‑level item creation (message/tool call/results/handoff).  
+- `AgentUpdatedStreamEvent` — agent context changes (e.g., after handoff). citeturn14view0
+
+### 2.6 Tools
+
+**Hosted Tools (via Responses model):**
+- `WebSearchTool`, `FileSearchTool`, `CodeInterpreterTool`, `ImageGenerationTool`, `ComputerTool`, `HostedMCPTool`, `LocalShellTool`. (Tool billing and availability per OpenAI Responses.) citeturn8view1
+
+**Function Tools (Python):**
+- `@function_tool` decorator turns Python functions into tools; schema from type hints/docstrings (griffe+pydantic); supports sync/async and contextual first-arg wrappers. citeturn8view1
+
+**Agents-as-Tools:**
+- `agent.as_tool(...)` to wrap an agent as a callable tool; or implement a custom tool that calls `Runner.run(...)`. citeturn8view1
+
+### 2.7 Handoffs
+- Configure via `handoffs=[...]` or `handoff(target_agent, ...)`.  
+- Default tool name pattern `transfer_to_<agent_name>`; override via `tool_name_override`.  
+- Structured input with `input_type`; transform history via `input_filter` (see `agents.extensions.handoff_filters`).  
+- `on_handoff(ctx, input_data?)` hook for prefetching/side effects; recommended prompt prefix available. citeturn10view0
+
+### 2.8 Guardrails
+- **Input guardrails:** only on the first agent’s initial input → may raise `InputGuardrailTripwireTriggered`.  
+- **Output guardrails:** only on the last agent’s final output → may raise `OutputGuardrailTripwireTriggered`.  
+- Implement with `@input_guardrail` / `@output_guardrail` returning `GuardrailFunctionOutput(output_info=..., tripwire_triggered=bool)`. citeturn15view0
+
+### 2.9 MCP Integration (SDK)
+| Option | When to Use | Notes |
+|---|---|---|
+| `HostedMCPTool` | Publicly reachable MCP server and/or connector-backed server | Supports approvals (`require_approval`: `always`/`never`/per tool), streaming. |
+| `MCPServerStreamableHttp` | You manage HTTP transport | Control URL, headers, tool filters, retries/timeouts. |
+| `MCPServerSse` | SSE transport | Similar config to streamable HTTP. |
+| `MCPServerStdio` | Local process over stdio | Useful for CLI-like servers. |
+citeturn9view0
+
+### 2.10 Sessions
+- Implementations include SQLAlchemy/SQLite/Encrypted; optional Redis via extra install.  
+- Manage prior messages/state across turns; customize with `session_input_callback`. citeturn5view0
+
+### 2.11 Tracing
+- Enabled by default; disable per run (`tracing_disabled`) or globally via env (`OPENAI_AGENTS_DISABLE_TRACING=1`).  
+- Control privacy with `trace_include_sensitive_data`; sanitize logs via env (`OPENAI_AGENTS_DONT_LOG_MODEL_DATA=1`, `OPENAI_AGENTS_DONT_LOG_TOOL_DATA=1`).  
+- Export to OpenAI Traces or custom processors; usable with non‑OpenAI models by providing tracing API key. citeturn11view0
+
+### 2.12 Streaming (Usage)
+```py
+
+```py
+from agents import Agent, Runner
+from openai.types.responses import ResponseTextDeltaEvent
+
+agent = Agent(name="Streamer", instructions="Stream thoughts.")
+result = Runner.run_streamed(agent, "Tell me 3 jokes.")
+async for ev in result.stream_events():
+    if ev.type == "raw_response_event" and isinstance(ev.data, ResponseTextDeltaEvent):
+        print(ev.data.delta, end="", flush=True)
+```
+
+```
+citeturn14view0
+
+### 2.13 REPL Utility
+- `run_demo_loop(agent, *, stream=True, context=None)` — interactive terminal loop that preserves conversation state (`exit`/`quit` to stop). citeturn16view1
+
+## 3) Processes / Rules / Exceptions (SDK)
+
+### 3.1 Process: Agent Loop
+- Invoke → final output? → handoff? → tools? → repeat until final output or `MaxTurnsExceeded`. (See Volume 1 §4.1). citeturn19view0
+
+### 3.2 Tool Use Behavior
+- Default: **run LLM again** after tool results.  
+- Options: **stop on first tool** or **StopAtTools** (stop on named tools). citeturn2view0
+
+### 3.3 Exceptions / Edge Cases
+| Exception | Trigger | Mitigation |
+|---|---|---|
+| `MaxTurnsExceeded` | Loop exceeded `max_turns`. | Adjust `max_turns`, improve prompts, or add stop conditions. |
+| `InputGuardrailTripwireTriggered` | Input guardrail tripped. | Catch → deny, redact, or escalate. |
+| `OutputGuardrailTripwireTriggered` | Output guardrail tripped. | Catch → revise or handoff. |
+**Edge toggles:** `StopAtTools`, `reset_tool_choice`, `session_input_callback`. citeturn19view0turn17view0
+
+## 4) Configuration, Environment & Logging (Python)
+| Purpose | Mechanism |
+|---|---|
+| API key | `OPENAI_API_KEY`; or `set_default_openai_key("sk-...")` |
+| Choose API | `set_default_openai_api("responses" \| "chat_completions")` |
+| OpenAI client | `set_default_openai_client(AsyncOpenAI(...))` |
+| Tracing API key | `set_tracing_export_api_key("sk-...")` |
+| Disable tracing | `set_tracing_disabled(True)` or `OPENAI_AGENTS_DISABLE_TRACING=1` |
+| Verbose logging | `enable_verbose_stdout_logging()` |
+| Sanitize logs | `OPENAI_AGENTS_DONT_LOG_MODEL_DATA=1`, `OPENAI_AGENTS_DONT_LOG_TOOL_DATA=1` |
+citeturn12view0
+
+## 5) JS/TS High‑Level API (Summary)
+- Agents, tools, handoffs, guardrails, tracing concepts mirror Python.  
+- Create tools with `tool({ name, description, parameters: z.object(...), execute })`.  
+- Run with `await run(agent, input) → { finalOutput, ... }`.  
+- Realtime voice agents supported (browser package).  
+- Local MCP server support. citeturn25view0
+
+## 6) Examples (SDK)
+
+### 6.1 Function Tool Example (Python)
+```py
+
+```py
+from agents import Agent, Runner, function_tool
+
+@function_tool
+def get_weather(city: str) -> str:
+    "Get current weather for a city."
+    return f"The weather in {city} is sunny."
+
+agent = Agent(
+  name="WeatherAssistant",
+  instructions="Use tools if needed, then answer.",
+  tools=[get_weather]
+)
+
+print((Runner.run_sync(agent, "Weather in Tokyo?")).final_output)
+```
+
+```
+citeturn8view1
+
+### 6.2 Handoffs (Python)
+```py
+
+```py
+from agents import Agent, Runner, handoff
+
+billing_agent = Agent(name="Billing agent")
+refund_agent  = Agent(name="Refund agent")
+
+triage = Agent(
+  name="Triage",
+  instructions="Route to billing or refund.",
+  handoffs=[billing_agent, handoff(refund_agent)]
+)
+print((Runner.run_sync(triage, "I need a refund")).final_output)
+```
+
+```
+citeturn10view0
+
+### 6.3 Minimal Agent (Python)
+```py
+
+```py
+from agents import Agent, Runner
+agent = Agent(name="Helper", instructions="Answer briefly.")
+res = Runner.run_sync(agent, "Capital of Belgium?")
+print(res.final_output)  # "Brussels"
+```
+
+```
+citeturn19view0
+
+## 7) Commands Cheat Sheet
+
+### Python
+- Install: `pip install openai-agents`  |  `uv add openai-agents`  
+- Extras: Voice `pip install "openai-agents[voice]"` | Redis `pip install "openai-agents[redis]"`  
+- Env:  
+  - `export OPENAI_API_KEY=...`  
+  - Disable tracing: `export OPENAI_AGENTS_DISABLE_TRACING=1`  
+  - Sanitize logs:  
+    - `export OPENAI_AGENTS_DONT_LOG_MODEL_DATA=1`  
+    - `export OPENAI_AGENTS_DONT_LOG_TOOL_DATA=1`  
+- Programmatic config (examples):  
+  `set_default_openai_key("sk-...")`, `set_default_openai_api("chat_completions")`, `enable_verbose_stdout_logging()`, `set_tracing_export_api_key("sk-...")`, `set_tracing_disabled(True)`
+
+### JS/TS
+- Install: `npm install @openai/agents zod@3`  
+- Env: `export OPENAI_API_KEY=...`  
+- Runtime: Node 22+ (Deno/Bun supported; Workers with `nodejs_compat`). citeturn25view0
+
+## 8) Metrics / KPIs (SDK/Agent Runs)
+- **Latency:** End‑to‑end time, tool latency; inspect spans in traces.  
+- **Cost:** Token + tool usage; attribute via trace spans. **VERIFY:** direct cost hooks.  
+- **Quality:** Evals accuracy, pass/fail on custom graders; guardrail tripwire rates; retry rates for MCP servers. citeturn21view0turn9view0
+
+## 9) References / Source Map (Merged)
+- Agents SDK docs (Python/JS), Responses API docs, AgentKit (Agent Builder, Connector Registry, ChatKit) product pages, Evals & RFT announcements, customer stories/use cases, and open‑source repos. Inline placeholders from the chat (e.g., `citeturn…` or `【…】`) denote the provenance of specific statements in the original responses.
+
+---
+
+## Deduplication Log (What was merged/omitted to avoid repetition)
+- **Concept definitions** (Agent, Runner, Tools, Guardrails, Handoffs, Sessions, Tracing, Streaming): canonical **Volume 1 §2**; redundant definitions in Volume 2 replaced by references.  
+- **High-level Agents SDK overview**: kept in **Volume 1 §3.2**; Volume 2 focuses on **APIs/commands/signatures**.  
+- **Examples duplicated across volumes**: retained representative examples in Volume 2; Volume 1 keeps domain narratives and platform context.  
+- **References/Source maps**: merged into a single section in each volume with a combined list at the end.
+
+---
+
+**End of Compendium**
+
+
+## Part C — Overzicht van kerncomponenten (NL)
+
+_Source_: **Overzicht van kerncomponenten.docx**
+
+# Overzicht van kerncomponenten (DOCX)
+
+Overzicht van kerncomponenten
+
+OpenAI AgentKit is een geïntegreerd platform (gelanceerd eind 2025) waarmee ontwikkelaars end-to-end AI-agents kunnen bouwen, uitvoeren en optimaliseren[1]. Voorheen vergde het ontwikkelen van zo’n agent veel losse onderdelen – ingewikkelde orchestration zonder versiebeheer, handmatige prompt-tuning, eigen integraties en weken werk aan een UI. AgentKit pakt dit aan door alles in één omgeving te bieden[1]. Het wordt wel omschreven als “ChatGPT with hands” – een systeem waarbij AI niet alleen tekst genereert maar ook acties uitvoert via tools en meerstapslogica[2][1]. AgentKit combineert eerdere OpenAI-experimenten in één gestructureerd en veiliger geheel. Hierdoor kunnen bedrijven agentische AI-toepassingen sneller ontwikkelen: van een visueel uitgewerkt idee tot een live agent met frontend, inclusief voortdurende evaluatie[3][4].
+
+Kerncomponenten van AgentKit:
+
+Agent Builder: Een visuele canvas-omgeving om multi-step workflows en agent-interacties te ontwerpen via drag-and-drop nodes (knooppunten). Hiermee kunnen ontwikkelaars logica visueel opstellen, tools koppelen en eigen guardrails instellen, met ondersteuning voor test-runs en versiebeheer[5][6]. (Zie ook Sectie 2 voor UI-details.)
+
+Agents SDK: Een code-first software development kit (beschikbaar voor Python, Node/TypeScript, etc.) voor het programmeerbaar orkestreren van agent-workflows. Hiermee kun je in code één of meerdere agents instellen met hun tools, onderlinge handoffs (delegatie aan andere agents), guardrails en geheugen, en de agent(s) asynchroon of synchroon laten draaien[7][8]. (Zie Sectie 3 en 4 voor workflows en codevoorbeelden.)
+
+Connector Registry: Een centraal beheerpaneel voor organisaties om connectors (gegevensbronnen en externe tools) te registreren en beheren[9]. In de registry configureert een admin bijvoorbeeld API-keys of toegangen (voor Dropbox, Google Drive, SharePoint, Microsoft Teams, etc.) éénmalig voor de hele organisatie[10]. Geregistreerde connectors kunnen dan door agents gebruikt worden (zowel in Agent Builder als via de API) zonder per agent apart credentials te hoeven toevoegen.
+
+Model-Context Protocol (MCP): Een open standaard waarmee externe tools of data “LLM-ready” gemaakt worden als MCP-servers[9]. Via MCP kan een agent acties uitvoeren op externe systemen: de agent stuurt een gestandaardiseerde instructie naar een MCP-server, die bijvoorbeeld een derde-partij service aanstuurt en het resultaat teruggeeft. De Connector Registry ondersteunt het beheren van MCP-servers (zowel gehost door OpenAI als zelf gehost)[9]. Zo kun je maatwerktools aansluiten op AgentKit.
+
+ChatKit: Een toolkit om chatinterfaces met agents eenvoudig in producten in te bedden[11]. ChatKit levert een plug-and-play chat UI-component met streaming responsweergave, visualisatie van tool-acties (denk aan melding “Agent zoekt op internet...”) en ondersteuning voor multi-turn conversaties. Ontwikkelaars kunnen de stijl/branding aanpassen zodat de chat naadloos in hun app past[11][12]. (Zie ook Sectie 3 over deployment.)
+
+Ingebouwde tools: Standaard beschikbaar via OpenAI’s Responses API, zodat agents de echte wereld kunnen betrekken bij hun antwoord[13]. Voorbeelden zijn Web search, File search, Code interpreter, Image generation en Computer use (CUA)[13]. Deze tools maken het mogelijk dat een agent bijvoorbeeld informatie opzoekt online, interne documenten doorzoekt, code uitvoert of een GUI-bediening doet om een taak te volbrengen. (Sectie 5 geeft details over deze tools en gebruik.)
+
+Guardrails: Een configureerbare veiligheidslaag om uitwassen te voorkomen. Guardrails (open-source library) kunnen bijvoorbeeld controleren op privacy-gevoelige output, jailbreak-pogingen detecteren of antwoorden afkappen die beleid schenden[14]. In AgentKit kun je guardrails inzetten als speciale nodes in de workflow of in de SDK als valideerder-objects. Ze helpen te zorgen dat agents binnen gewenste grenzen blijven, door bij overtreding acties te ondernemen (bijv. gebruiker om verduidelijking vragen, excuus bieden, of een fallback-route activeren).
+
+Evals & RFT: Hulpmiddelen om agentprestaties te meten en verbeteren. Evals is OpenAI’s evaluatieplatform waarmee je prompts en agent-antwoorden kunt testen op kwaliteit[15]. In AgentKit zijn extra functies toegevoegd zoals datasets (om eigen testcases te beheren), trace grading (automatische beoordeling van volledige agent-run traces), en prompt optimalisatie (automatische suggesties voor betere prompts op basis van evaluatieresultaten)[16]. Daarnaast biedt Reinforcement Fine-Tuning (RFT) de mogelijkheid om een model verder te trainen met terugkoppeling, bijv. om het beter te laten leren wanneer welke tool in te zetten of hoe bepaalde criteria te scoren[17]. (Sectie 7 gaat dieper in op evaluatie en optimalisatie.)
+
+Waarom AgentKit? Samengevat biedt AgentKit een uniek totaalpakket voor agent-ontwikkeling. Ontwikkelaars kunnen workflows visueel ontwerpen of direct in code schrijven (beide bouwen voort op dezelfde Responses API), ze kunnen direct een chat-UI implementeren voor eindgebruikers, en performance-meetgegevens verzamelen om de agent te verbeteren – allemaal binnen één platform[18][1]. Dit versnelt de iteratie aanzienlijk: teams als Ramp zagen bijvoorbeeld 70% kortere iteratiecycli en gingen in uren van idee naar een werkende agent in productie[19]. Bovendien is de Agents SDK open-source en provider-agnostisch, waardoor ervaren ontwikkelaars onder de motorkap fijnmazig kunnen aanpassen of zelfs andere modelproviders kunnen aansluiten[20]. De volgende secties bespreken de onderdelen en gebruik in detail.
+
+UI-elementen van de Agent Builder
+
+Figuur: Voorbeeld van de Agent Builder canvas-UI voor een klantenservice workflow. Links begint de flow bij Start, gevolgd door een Jailbreak guardrail node (met uitgangen Pass en Fail), dan een Classification agent node die eindigt in een End. In het midden een If/else node splitst de flow op basis van het resultaat naar verschillende vervolg-agent nodes (zoals Return agent, Retention agent, Information agent) met ieder hun eigen End. Rechts is nog een Hallucination guardrail node als afsluitende controle.[21]
+
+Overzicht interface: De Agent Builder is te bereiken via de OpenAI Platform UI (onder het tabblad “Agents”). Bovenin het scherm kies je tussen drie tabbladen: Workflows, Drafts en Templates[22]. In Workflows staan gepubliceerde agent-workflows (die klaar zijn voor gebruik), Drafts bevat concepten waaraan je werkt, en Templates biedt een galerij voorgedefinieerde voorbeeldagents die je als startpunt kunt laden. Meestal begin je met een Nieuwe workflow (leeg canvas) of kies je een template, waarna de visuele editor opent.
+
+Canvas en knooppunten: Centraal staat het canvas waar je nodes (knooppunten) plaatst en met verbindingslijnen aan elkaar koppelt om de logica op te bouwen[23]. Elke node vertegenwoordigt een stap of element in de workflow. Er zijn verschillende categorieën nodes, die je vanuit een zijbalk kunt slepen:
+
+Core-nodes: Start, Agent en Note. Een Start-node markeert het beginpunt van de flow (er is precies één Start per workflow). Een Agent-node vertegenwoordigt een AI agent (LLM) die een prompt/instructie uitvoert en eventueel tools gebruikt; dit is vaak het belangrijkste beslispunt in de flow. Een Note-node is een notitie of commentaar binnen de flow, bedoeld voor documentatie of om statische informatie toe te voegen (heeft geen logische uitvoer).
+
+Tool-nodes: Bijvoorbeeld File Search, Guardrails en MCP nodes. Deze maken gebruik van de ingebouwde tools of connectors. Een File search-node laat de agent zoeken in opgegeven documenten of knowledge base en retourneert resultaten (vaak gebruikt voor RAG-achtige retrieval). Een Guardrail-node voert een veiligheidscontrole uit op de input of output; als een guardrail een probleem detecteert (bijv. beleidsschending), kan de node de flow omleiden of blokkeren (de node heeft vaak twee uitgangen: Pass en Fail)[24]. Een MCP-node verbindt de agent met een externe actie via een geregistreerde MCP-server – dit wordt gebruikt om bijvoorbeeld een third-party API of applicatie aan te sturen via de Model-Context Protocol.
+
+Logic-nodes: Bijvoorbeeld If/Else, While en User Approval. If/Else is een vertakkingsnode waarmee je op basis van een conditie of agent-uitkomst verschillende paden kunt laten volgen (meerdere uitgangen, vaak automatisch gekoppeld aan resultaten die de agent teruggeeft). While biedt lus-constructies (herhaal een deel van de flow zolang een conditie waar is). User Approval is een speciale node voor human-in-the-loop: hierbij wordt de gebruikersinput of een actie ter goedkeuring aan een mens voorgelegd voordat de agent verder gaat. Dit is handig als fallback of voor gevoelige acties (bijv. “Vraag medewerker om goed te keuren voordat account wordt verwijderd”)[25].
+
+Data-nodes: Bijvoorbeeld Transform en Set State. Transform kan data transformeren of filteren (bijv. output van een tool formatteren). Set State nodes kunnen variabelen of context instellen voor later gebruik in de workflow (soort geheugen tussen stappen). Deze nodes helpen om informatie van de ene stap door te geven aan latere stappen, buiten de standaard conversatie om.
+
+Je voegt nodes toe door ze uit de linker node-bibliotheek naar het canvas te slepen. Vervolgens kun je verbindingen tekenen van de ene node naar de volgende om de volgordelijkheid te bepalen[26]. Elke verbinding loopt van een uitvoer van de ene node (bijv. de Pass-uitgang van een guardrail, of de standaard output van een agent) naar de ingang van een volgende node. De flow eindigt impliciet zodra een agent een definitief antwoord geeft én er geen volgende node is (je kunt optioneel een expliciete End-node toevoegen ter verduidelijking, maar dat is niet altijd vereist).
+
+Node configuratie: Wanneer je een node selecteert, verschijnt er in de UI meestal een paneel (vaak rechts) om eigenschappen in te stellen. Voor een Agent-node stel je bijvoorbeeld de instructies (systeemprompt of rol) in die deze agent moet volgen, kies je het LLM model (bv. GPT-4) en geef je aan welke tools deze agent mag gebruiken. Je kunt ook connectors toevoegen aan een agent-node: onder “MCP Servers” koppel je bijvoorbeeld een bepaalde dataserver (zoals “Rube MCP” of een eigen server) om de agent toegang te geven tot externe acties[27][28]. Voor een Guardrail-node kies je welke guardrail-policy toegepast wordt (bv. een PII-filter of jailbreak-detectie). Bij een File search-node selecteer je welke dataset of map doorzocht moet worden, etc. Deze UI zorgt ervoor dat veel instellingen point-and-click zijn in plaats van code.
+
+Toolbar en opties: Bovenaan de canvas zijn diverse knoppen voor ontwikkeling en beheer: Evaluate, Code, Preview, Publish[21].
+
+Preview: Hiermee kun je een workflow in de sandbox testen. In Preview-modus voer je de agent uit alsof een gebruiker een prompt geeft, en je ziet live de stappen doorlopen worden. Je kunt de tussenstappen/traces inspecteren: bijvoorbeeld de gedachtegang van de agent, welke tool output er binnenkomt, etc.[29]. Opmerking: Om de preview-run te mogen uitvoeren, moet je account geverifieerd zijn en is vaak een API-key/billing ingesteld voor eventuele tool-calls[30].
+
+Evaluate: Deze optie integreert met Evals – je kunt een set testprompts (dataset) definiëren en automatische graders instellen binnen de builder UI zelf. Zo kun je direct vanuit de Agent Builder een evaluatie draaien op je workflow (bijv. 100 testcases) en de resultaten zien, zonder de code in te duiken[29]. Dit is onderdeel van de “inline eval configuration” waarover OpenAI communiceert[31].
+
+Code: Via deze knop kun je de gegenereerde code bekijken die overeenkomt met je visuele flow[32]. Agent Builder genereert namelijk Python- of TypeScript-code (via de Agents SDK) die de getekende workflow beschrijft. Gevorderde gebruikers kunnen deze code exporteren en verder verfijnen buiten de UI om[33]. Het is een handige manier om te leren hoe de SDK structuur eruitziet voor jouw flow, of om snelle aanpassingen in code te doen die (nog) niet via de UI kunnen.
+
+Publish: Als je tevreden bent met een workflow, kun je deze publiceren. Een Published workflow wordt vergrendeld (alleen-lezen) en verschijnt onder het Workflows-tabblad, met een versie en eventueel een shareable endpoint. Een gepubliceerde agent kan dan via ChatKit of de API gebruikt worden door eindgebruikers. (Je kunt altijd een nieuwe versie maken door de draft te wijzigen en opnieuw te publiceren, en er is versiebeheer om terug te rollen indien nodig[31].)
+
+Samenwerking en documentatie: De visuele aanpak maakt het makkelijk voor multidisciplinaire teams om samen te werken. Productmanagers, juridische teams en ontwikkelaars zien allemaal dezelfde flow in Agent Builder, wat afstemming vergemakkelijkt[34]. Via de Note-nodes en een duidelijk canvasoverzicht kun je documenteren wat er in elke stap gebeurt. Dit vermindert miscommunicatie en versnelt iteraties aanzienlijk (OpenAI claimt tot wel 70% kortere iteratiecycli bij teams die Agent Builder gebruiken[19]).
+
+Beperkingen van de huidige UI: Momenteel is Agent Builder vooral gericht op chat-driven workflows – d.w.z. een gebruiker stelt een vraag of start een sessie, en de agent workflow loopt daarop. Er zijn (nog) geen event-triggered of geplande runs zonder chatinput (zoals cronjobs of webhooks)[35]. Ook draait het volledig in OpenAI’s cloud (geen on-premise versie beschikbaar). Verder is het aantal integraties buiten het OpenAI-ecosysteem beperkter dan bij gevestigde RPA/workflow-tools; je kunt veel via MCP customizen, maar er is geen uitgebreide library van 100+ connectors zoals sommige third-party automation platforms bieden[36][37]. Dit zal na verloop van tijd groeien. Agent Builder is bij lancering een beta-product – toegang kan beperkt zijn en features kunnen nog veranderen[38][39]. Desalniettemin is het een krachtig startpunt om complexe AI-logica visueel samen te stellen en direct te experimenteren met agentgedrag.
+
+Workflows (visueel en in code)
+
+In deze sectie bespreken we hoe je meerstaps workflows met agents opstelt en uitvoert – zowel via de visuele Agent Builder als via de Agents SDK in code. In essentie dienen beide benaderingen hetzelfde doel: een reeks agent-gedreven stappen definiëren die samen een taak volbrengen, inclusief eventuele tool calls, beslismomenten en sub-agents.
+
+Visuele workflows in Agent Builder: In de UI bouw je een workflow door nodes te verbinden, zoals beschreven. Je kunt hiermee complex gedrag modelleren, bijvoorbeeld: een klantvraag komt binnen bij de eerste agent, die bepaalt wat voor vraag het is (klassificeert) en vervolgens via een If/Else node de juiste route kiest. Misschien gaat het om een refund-verzoek, dan leidt het pad naar een Refund agent die gespecialiseerd is in retouren; gaat het om een billing-vraag, dan naar een Billing agent, etc. Dit is een vorm van agent handoff in de visuele flow: de ene agent kan doorverwijzen naar een andere agent voor specifieke expertise[40]. Elke agent-node op het canvas kan eigen instructies en tools hebben. Uiteindelijk eindigt de workflow bij een antwoord naar de gebruiker (of een andere uitkomst zoals een handoff naar een mens). De visuele workflow maakt alle stappen expliciet zichtbaar, wat debuggen en overleg makkelijk maakt. Conditionele logica (If/Else), loops en user approvals zorgen dat je complexe beslissingsstructuren kunt inbouwen zonder een regel code te schrijven.
+
+Uitvoering van een agent-loop: Onder de motorkap (zowel in de UI als code) werkt een agent als een cyclische loop[41]. Dit agent loop-principe houdt in dat de agent herhaaldelijk de volgende acties doorloopt:
+
+De agent (LLM) ontvangt een prompt (bestaande uit de gebruikersvraag + systeeminstructies + relevante context).
+
+De agent genereert een antwoord. Dit antwoord kan twee vormen hebben: ofwel een finale output (het uiteindelijke antwoord voor de gebruiker zonder verdere acties nodig) of een actie (bijv. “gebruik tool X met parameter Y”).
+
+Als het een tool-actie is, wordt de betreffende tool aangeroepen. De resultaten van die tool (bijv. zoekresultaten, of uitvoer van code) worden teruggekoppeld aan de agent. De agent neemt dit mee en gaat weer naar stap 2 (de context bevat nu ook het resultaat van de tool).
+
+Dit herhaalt totdat de agent een finale output geeft of er een andere stopconditie bereikt is (bijv. een ingebouwd limiet op aantal iteraties of een guardrail die afbreekt)[41].
+
+In pseudocode kun je het zien als: while not final_output: reason -> if tool_action: execute tool -> incorporate result. Standaard zal de Agents SDK na een toolresultaat de LLM weer draaien om verder te redeneren[42]. Je kunt dit gedrag ook aanpassen, bv. aangeven dat de agent na één tool direct moet stoppen of alleen bepaalde tools mag gebruiken voordat hij antwoordt (via instellingen als tool_use_behavior)[43], maar doorgaans laat men de agent zelf bepalen hoeveel tools hij nodig heeft.
+
+Multi-agent workflows: Soms is één enkele agent niet genoeg of handig voor alle taken. AgentKit ondersteunt daarom meerdere agents in één flow. In Agent Builder zagen we dit al via meerdere Agent-nodes en handoff-verbindingen. In code kun je dit doen via het concept Handoff: een agent kan geconfigureerd worden met een lijst van andere agents (of handoff objecten) waarnaar hij kan doorverwijzen[20]. Bijvoorbeeld: je maakt een triage_agent met handoffs=[billing_agent, refund_agent]. Deze triage-agent kan op basis van het gebruikersbericht beslissen de taak over te dragen aan billing_agent of refund_agent. De SDK zorgt er dan voor dat de juiste agent de controle overneemt en verder het gesprek voert[44]. Dit principe lijkt op microservices: elke agent heeft zijn specialisatie (eentje voor facturatievragen, eentje voor retouren, etc.), en de triage doet alleen de routering. Dit verhoogt modulariteit en kan de kwaliteit verbeteren omdat elke agent een kleinere, gerichtere prompt heeft. In de UI doe je iets vergelijkbaars door meerdere agent-nodes te plaatsen en logica te gebruiken om daartussen te schakelen.
+
+Geheugen en context: AgentKit workflows kunnen multi-turn conversaties met geheugen ondersteunen. In code gebeurt dit via een Session object of door het doorgeven van de conversatiehistorie; in Agent Builder gebeurt dit automatisch binnen een chat sessie. De Agents SDK onderhoudt bijvoorbeeld automatisch de vorige berichten in een Session zodat de agent context heeft van eerdere vragen en antwoorden[45][46]. Dit betekent dat als een gebruiker doorvraagt, de agent nog weet waar het over ging. In de UI is elk chatvenster gekoppeld aan zo’n sessie. Het platform zorgt dat privédata (zoals een conversation ID) gebruikt wordt om de context per gebruiker te houden. Ontwikkelaars kunnen ook instellen hoelang het geheugen moet blijven bestaan of wanneer het gereset moet worden (bijv. om grenzen te stellen aan context omvang).
+
+Orkestratie via code vs via UI: De Agents SDK geeft ontwikkelaars de volledige kracht van Python/TypeScript om workflows te sturen. In code kun je dus constructies gebruiken zoals reguliere if/else statements, loops, function calls etc. Dit voelt voor een programmeur natuurlijk aan en biedt flexibiliteit: je kunt bijvoorbeeld API-calls doen naar eigen systemen middenin de workflow, of complexe datatransformaties uitvoeren, wat in de visuele builder lastiger kan zijn. De SDK introduceert maar een paar concepten zelf – zoals de classes Agent, Runner, Tool, Guardrail, Handoff, Session – zodat er weinig nieuwe leercurve is[7][47]. Je schrijft normale Python-code om agents en tools te declareren, en gebruikt de Runner om ze uit te voeren (zoals we in de codevoorbeelden zullen zien). De visuele aanpak is intuïtiever voor snelle prototyping en voor niet-programmeurs, terwijl de code-aanpak meer controle en integratie in bestaande codebases biedt. Belangrijk: beide benaderingen gebruiken op de achtergrond de Responses API – dit is de OpenAI API-interface waarmee de LLM en toolcalls aangestuurd worden[48][49]. Dat betekent dat ongeacht of je de UI of SDK gebruikt, de manier waarop de agent redeneert en tools inzet consistent is. Bovendien worden uitvoer-traces in beide gevallen opgeslagen, zodat je via het OpenAI dashboard of API de trace kunt inspecteren (inclusief tokengebruik, welke tools zijn aangeroepen, duur van elke stap, etc.).
+
+Guardrails en foutenafhandeling: Een robuste workflow houdt rekening met fouten en uitzonderingen. In Agent Builder kun je een guardrail-node inbouwen om ongewenste output te onderscheppen en dan bijvoorbeeld via een aparte pad een fallback agent te laten antwoorden (bv. een excuses- of veilige antwoord agent)[24]. Je kunt ook bijvoorbeeld een User Approval node plaatsen na een verdachte actie, zodat een mens expliciet toestemming moet geven. In de Agents SDK kun je guardrails toevoegen aan een agent via input_guardrails en output_guardrails lijsten, zodat deze automatisch gecheckt worden bij de start- en eindfase van de agent run[50]. Daarnaast kunnen tijdens de executie exceptions optreden (bv. MaxTurnsExceeded als een agent te vaak in loop gaat zonder te stoppen, of een ToolError als een tool faalt). De SDK definieert deze exceptions en je kunt ze opvangen in code om bijvoorbeeld een alternatief pad te triggeren[51]. In de visuele builder is er momenteel minder fijnmazige error handling – meestal stop de run of gaat via een guardrail node – maar toekomstige versies kunnen geavanceerdere error-handling nodes krijgen.
+
+Deployment van workflows: Eenmaal ontworpen kan een workflow op twee manieren naar eindgebruikers worden gebracht: (1) via ChatKit – je embedt een chat UI in je applicatie die onder water de gepubliceerde workflow aanroept – of (2) via de API/SDK direct – je maakt zelf een interface (tekstveld bijvoorbeeld) en stuurt de gebruiker input naar je agent (Agents SDK) en retourneert het antwoord. ChatKit is duidelijk de snelste route als je een chatervaring wilt; je voegt een paar regels script toe aan je webapp en je hebt een volledig werkende chatagent UI, inclusief streaming antwoorden en alles[12]. Voor maatwerkinterfaces of integratie in backends kun je direct de Agents SDK of API calls naar de Responses API gebruiken. OpenAI is ook van plan om directe agent deployment in ChatGPT mogelijk te maken, zodat workflows via de ChatGPT interface gedeeld/uitgevoerd kunnen worden (dat is aangekondigd als toekomstplan)[52].
+
+Tot slot: workflows kunnen iteratief verbeterd worden. Dankzij versiebeheer in Agent Builder kun je nieuwe versies testen terwijl de oude nog live staat, en zonodig terugrollen. De integratie met evals (zie Sectie 7) helpt om na deployment te monitoren hoe de agent presteert op realistisch gebruik, zodat je weer terug de build-optimize cyclus in kunt. Op die manier vormt AgentKit een closed loop voor continue verbetering: Build → Deploy → Observe → Evaluate → Optimize → (repeat)[53].
+
+Codevoorbeelden (aannames, tests & reproductie)
+
+Hieronder geven we enkele codevoorbeelden uit de Agents SDK (Python) om te illustreren hoe je in code een agent opstelt, tools toevoegt en meerdere agents orkestreert. We noteren ook welke aannames er zijn en hoe je de code kunt uitproberen. Voordat je de voorbeelden draait, gaan we uit van de volgende setup (aannames):
+
+Python omgeving met versie 3.9 of hoger, en het pakket openai-agents geïnstalleerd (via pip install openai-agents)[54].
+
+Een geldige API key van OpenAI beschikbaar (bijv. als omgevingsvariabele OPENAI_API_KEY) zodat de agent het model kan aanroepen[55].
+
+Eventueel heb je voor toolgebruik bepaalde configuraties klaar (in deze voorbeelden zijn de tools simpel of ingebouwd, dus geen aparte setup nodig).
+
+Elk voorbeeld kan als zelfstandig Python-script worden uitgevoerd. Omdat de agentcommunicatie via OpenAI’s API loopt, moet je internettoegang hebben en houd er rekening mee dat API-kosten gemaakt kunnen worden (token- en tool-usage).
+
+Voorbeeld 1: Een minimale vraag-antwoorden agent
+Doel: Demonstreert een eenvoudige agent zonder extra tools, die een gebruiker’s vraag beantwoordt.
+
+from agents import Agent, Runner
+
+# We definiëren een agent met een naam en een eenvoudige instructie.
+agent = Agent(name="Helper", instructions="Beantwoord de vraag kort en bondig.")
+
+# We draaien de agent synchronously op een voorbeeldvraag:
+result = Runner.run_sync(agent, "Wat is de hoofdstad van België?")
+print(result.final_output)
+
+Toelichting: Hier creëren we een Agent met enkel een rol (“beantwoord kort en bondig”). We gebruiken Runner.run_sync om de agent direct een gebruikersvraag te laten verwerken. De agent zal het achterliggende LLM (standaard GPT-4 tenzij anders opgegeven) vragen “Wat is de hoofdstad van België?” en het antwoord teruggeven. We printen final_output, waarin het uiteindelijke antwoord staat.
+
+Uitvoer: Wanneer je dit script uitvoert (met geldige API key), zou de console als output bijvoorbeeld geven:
+
+Brussel
+
+De agent heeft namelijk de vraag gezien en direct beantwoord met de hoofdstad. Dit voorbeeld bevestigt dat de basis werkt. Je kunt experimenteren door de prompt of instructies aan te passen.
+
+Voorbeeld 2: Gebruik van een functie-tool (custom tool)
+Doel: Laat zien hoe je een eigen Python-functie als tool aan de agent geeft, zodat de agent die kan aanroepen.
+
+from agents import Agent, Runner, function_tool
+
+# Definieer een simpele toolfunctie en decoreer met @function_tool
+@function_tool
+def get_weather(city: str) -> str:
+    """Geeft het huidige weer terug voor een stad."""
+    # In dit voorbeeld returnen we een vaste string voor demo-doeleinden.
+    return f"Het weer in {city} is zonnig."
+
+# Maak de agent en ken de tool toe
+agent = Agent(
+    name="WeatherAssistant",
+    instructions="Je bent een weer-assistent. Gebruik tools indien nodig en geef dan het antwoord.",
+    tools=[get_weather]  # we voegen onze function tool toe
+)
+
+# Voer de agent uit op een vraag die de tool nodig heeft
+result = Runner.run_sync(agent, "Hoe is het weer in Tokio?")
+print(result.final_output)
+
+Toelichting: Hier creëren we eerst een Python-functie get_weather die een weersberichtje teruggeeft voor een gegeven stad. Door de @function_tool decorator toe te passen, wordt deze functie omgezet in een Tool-object dat de Agents SDK herkent[56]. Bij het aanmaken van de agent geven we deze tool mee in de lijst tools=[...]. De instructie van de agent moedigt aan om tools te gebruiken als dat nodig is. Wanneer we de agent vragen “Hoe is het weer in Tokio?”, zal het LLM beseffen dat het zelf geen werkelijk weer weet en besluiten de get_weather tool aan te roepen (met parameter “Tokio”). De SDK voert dan onze Python-functie uit en krijgt “Het weer in Tokio is zonnig.” terug, waarna de agent dat als final output teruggeeft.
+
+Uitvoer: De print zal het weerbericht tonen. In dit demo-geval hebben we het antwoord hardcoded als “zonnig”, dus de output zal zijn:
+
+Het weer in Tokio is zonnig.
+
+In een echte use-case zou de get_weather functie natuurlijk een echte API kunnen aanroepen voor live-weer, maar het principe is hetzelfde. Dit voorbeeld illustreert hoe makkelijk je eigen functionaliteit als tool kan inpluggen dankzij de function_tool decorator – de SDK genereert automatisch de juiste JSON schema’s zodat het LLM weet hoe de tool te gebruiken[57].
+
+Voorbeeld 3: Meerdere agents en handoff
+Doel: Demonstreert het gebruik van handoffs tussen agents – een hoofdagent die een taak doorgeeft aan gespecialiseerde sub-agents.
+
+from agents import Agent, Runner, handoff
+
+# Definieer twee specialistische agents (eenvoudig, zonder speciale instructies hier)
+billing_agent = Agent(name="Billing agent", instructions="Dit is de facturatie-agent. Behandel alle factuurvragen.")
+refund_agent  = Agent(name="Refund agent", instructions="Dit is de retour-agent. Behandel alle refund verzoeken.")
+
+# Definieer een triage agent die verzoeken routeert naar billing of refund
+triage_agent = Agent(
+    name="Triage",
+    instructions="Bepaal of het verzoek over facturatie of retour gaat en draag over.",
+    handoffs=[billing_agent, handoff(refund_agent)]
+)
+
+result = Runner.run_sync(triage_agent, "Ik wil graag mijn geld terug, het product bevalt niet.")
+print(result.final_output)
+
+Toelichting: We maken twee sub-agents: billing_agent en refund_agent, elk met hun eigen (beknopte) instructies. Vervolgens maken we een triage_agent met een handoffs lijst. We plaatsen direct het billing_agent object erin en voor de tweede gebruiken we handoff(refund_agent) – dit is een nuance waarbij handoff() aanvullende criteria zou kunnen hebben (in dit eenvoudige geval is het vergelijkbaar met direct het object opgeven)[58]. Het idee is dat de triage-agent bij het verwerken van een gebruikersbericht de keuze kan maken om naar één van deze twee agents over te dragen.
+
+In het voorbeeldbericht vraagt de gebruiker om geld terug -> dat is een refund-case. De triage-agent zal dit herkennen (vermoedelijk door trefwoord “geld terug” of “niet tevreden”) en besluiten de Refund agent te laten afhandelen. De Agents SDK zorgt er dan voor dat refund_agent de conversatie voortzet. Uiteindelijk printen we het antwoord dat van de refund_agent komt.
+
+Uitvoer: In dit voorbeeld hebben we de sub-agents minimale instructies gegeven, dus een mogelijk (fictief) antwoord zou kunnen zijn: “Natuurlijk, ik help u met de retourprocedure. U ontvangt uw geld binnen 5 werkdagen terug.” (Aangenomen dat de refund_agent dit genereert op basis van zijn rol als retour-assistent). Het precieze antwoord kan variëren omdat het afhangt van het model. Belangrijk is dat de triage-agent niet zelf antwoordt, maar het heeft doorverwezen – dit zie je ook in de trace als je verbose logging aanzet: de loop zal een Handoff event tonen waarna de refund_agent wordt aangeroepen.
+
+Dit voorbeeld toont hoe je in code logica kunt inbouwen om verschillende agents samen te laten werken. In meer complexe situaties kun je ook filters meegeven aan handoff(), bijvoorbeeld alleen overdragen als het bericht bepaalde woorden bevat, etc. Maar zelfs zonder expliciete condities is het LLM best goed in de juiste agent kiezen als je de instructies duidelijk maakt (“voor X ga naar agent A, voor Y ga naar B”).
+
+(Ter info: naast Python en de sync run_sync methode, is er ook run voor async uitvoering en een JavaScript/TypeScript-equivalent run() in het @openai/agents npm-pakket. De concepten blijven gelijk, dus we beperken ons tot Python voor de voorbeelden.)
+
+Tools en hun inzet
+
+Een belangrijk onderdeel van agents is hun vermogen om tools te gebruiken om informatie op te halen of acties uit te voeren. OpenAI AgentKit biedt een set ingebouwde tools out-of-the-box, en daarnaast mogelijkheden voor custom tools en integraties via connectors. In deze sectie bespreken we welke tools er zijn en hoe ze worden ingezet.
+
+Ingebouwde tools (Responses API)
+
+De volgende tools zijn direct beschikbaar voor agents binnen de OpenAI omgeving, vaak aangeduid als “built-in tools” in de Responses API:
+
+Web search: laat een agent het web doorzoeken en up-to-date informatie vinden, waarbij antwoorden voorzien kunnen zijn van inline bronvermeldingen[59]. Dit is dezelfde zoekfunctionaliteit die ChatGPT’s browsing ondersteunt. Bijvoorbeeld, een agent kan bij een complexe vraag eerst een web search tool call doen (“zoek: ...”) en vervolgens de gevonden informatie in zijn antwoord verwerken.
+
+File search: stelt de agent in staat om in geüploade bestanden of bedrijfsdocumenten te zoeken[60]. Dit is essentieel voor het bouwen van een RAG (Retrieval-Augmented Generation) workflow, waar de agent relevante passages uit een kennisbank ophaalt om feitelijke antwoorden te geven. Ontwikkelaars kunnen verschillende documenten of knowledge bases koppelen (via de Connector Registry, zie verderop) die de file search tool doorzoekbaar maakt.
+
+Image generation: genereert afbeeldingen op basis van natuurlijke taal input[61]. Dit gebruikt waarschijnlijk een variant van DALL·E of gelijkwaardig. Een agent kan deze tool inzetten als een gebruiker vraagt om een afbeelding (“Geef me een tekening van een kat op een skateboard”). De tool levert een gegenereerde afbeelding terug, die de agent dan kan presenteren of verder beschrijven.
+
+Code interpreter: voert in een sandbox Python-code uit en retourneert de output[62]. Dit is vergelijkbaar met de ChatGPT Code Interpreter (nu ook bekend als “Advanced Data Analysis”). Hiermee kan de agent bijvoorbeeld data-analyse doen, bestanden lezen/schrijven, of complexe berekeningen uitvoeren. De agent schrijft zelf de code (als deel van zijn LLM output) en de tool runt het en geeft de resultaten terug, die de agent weer interpreteert. Zo kan een agent bijvoorbeeld grafieken plotten of een CSV doorzoeken om een vraag te beantwoorden.
+
+Computer use (CUA): laat de agent computer-applicaties bedienen alsof het een mens achter een computer is[63]. Dit is de meest krachtige en experimentele tool: de agent kan muis- en keyboard-acties simuleren in een virtuele omgeving. Daarmee kan hij bijvoorbeeld een webinterface bedienen die geen API heeft, of een legacy app automatiseren (bijvoorbeeld een reeks formulier-invoers op een overheidswebsite). Dit is gebaseerd op het Computer-Using Agent model, dat vision (de interface “zien”) combineert met acties. In de praktijk is deze tool nog in research preview en niet 100% betrouwbaar – OpenAI vermeldt ~38% success rate op algemene OS taken voor de CUA modelversie ten tijde van lancering[64][65]. Toch hebben vroege gebruikers (bijv. Luminai, Unify) al interessante automatiseringen gebouwd die anders onmogelijk waren[66].
+
+Deze ingebouwde tools worden door OpenAI beheerd. Als ontwikkelaar hoef je niet de implementatie te schrijven (bijv. de web search gebruikt OpenAI’s eigen zoek-API). Hoe activeer je deze tools? In de Agent Builder UI kun je een node van het betreffende type toevoegen (bijvoorbeeld een “Web Search”-node) op de plek waar je die actie wilt. Je moet mogelijk parameters instellen, bv. voor file search welke documenten of voor image generation de gewenste resolutie. In code via de Agents SDK moet je expliciet aangeven welke tools een agent mag gebruiken. Vaak gaat dit door een speciaal tool-object toe te voegen aan Agent.tools. Momenteel biedt de SDK waarschijnlijk utility-functies of classes voor de hosted tools – bijvoorbeeld een WebSearch tool object. (Documentatie suggereert dat de SDK grotendeels provider-agnostisch is, dus het zou kunnen dat ingebouwde tools beschikbaar zijn via de openai.types of via de Responses API configuratie, maar voor developer gemak kun je ook de function_tool route gebruiken om eigen wrappers te maken indien nodig.) Het belangrijkste is: als je wilt dat een agent een bepaalde tool kan aanroepen, moet je dat in zijn configuratie aangeven. Standaard heeft een agent geen tools en kan hij alleen maar antwoorden genereren zonder externe acties.
+
+Connectoren (externe data integratie): De kracht van AgentKit ligt ook in het connecteren van bedrijfsdata. Via de Connector Registry koppel je bijvoorbeeld je interne kennisbronnen. Er zijn al veel pre-built connectors beschikbaar (Dropbox, Google Drive, SharePoint, Microsoft Teams, Confluence, etc.)[10] die door OpenAI worden onderhouden. Een connector zorgt ervoor dat de File search tool toegang krijgt tot die specifieke bron (bijv. je Dropbox bestanden). Om een connector te gebruiken moet een admin meestal API-toegang configureren (bijv. OAuth credentials). Daarna kan elke agent in de organisatie die filesearch doet, meteen in de geconfigureerde bronnen zoeken zonder dat je code voor die specifieke integratie hoeft te schrijven. Naast bestanden omvatten connectors ook andere mogelijke toolintegraties (bijv. databases, ticket-systemen).
+
+MCP-servers (custom tools): Als er geen standaard connector of tool is voor wat je nodig hebt, kun je een MCP server opzetten. Dit is een service (door jezelf gehost of via een platform als Rube) die luistert naar acties van de agent en die uitvoert op externe systemen. Denk aan MCP als een vertaler tussen de agent en een externe actie. Bijvoorbeeld, je zou een MCP-server kunnen hebben die transacties op een blockchain uitvoert. De agent stuurt via MCP de instructie “stuur 1 ETH van A naar B” en de server doet dat en geeft resultaat terug. In Agent Builder kun je een MCP node toevoegen en koppelen aan een specifieke server (die je hebt geregistreerd in de Connector Registry). In code kun je waarschijnlijk een MCP tool definiëren door een soort MCPTool object met het juiste endpoint.
+
+Gebruik van tools in praktijk: Een agent bepaalt zelf wanneer en hoe een tool te gebruiken, op basis van zijn prompt en de gereedschappen die beschikbaar zijn. Daarom is prompt design cruciaal: in de systeeminstructies van de agent wordt meestal beschreven welke tools hij tot zijn beschikking heeft en hoe hij die moet toepassen. OpenAI’s Responses API neemt een deel van dit werk over door automatisch de functie-schema’s voor tools te verstrekken aan het model, zodat het model weet hoe de aanroep eruit ziet. Als ontwikkelaar zie je dit terug in de logs: de agent “bedenkt” bijvoorbeeld een actie: Action: web_search["query": "GDP of France"], en de Agents SDK vangt dat op, voert de tool uit en geeft het resultaat terug als een observatie, waarna het model verder gaat. Dit proces is doorgaans onzichtbaar voor de eindgebruiker; die ziet alleen dat de agent even “aan het nadenken” is en vervolgens een compleet antwoord presenteert (eventueel met citaten).
+
+Kostenaspect: Let op dat het gebruik van tools extra kosten met zich mee kan brengen. OpenAI rekent bijvoorbeeld voor een web search call een klein bedrag per zoekopdracht, of voor file search een bedrag per GB doorzocht per dag[67]. Deze kosten komen bovenop de tokenkosten van het LLM. Het is daarom goed om in evaluaties (zie Sectie 7) te meten hoe vaak tools worden ingezet en of dat efficiënter kan. Via de trace-data en de OpenAI dashboard kun je inzicht krijgen in het aantal toolcalls en de daarmee gemoeide kosten[68]. Als best practice kun je bijvoorbeeld limieten zetten (er is een parameter max_tools of je kunt in je prompt vragen om spaarzaam tools te gebruiken).
+
+Custom function tools: Naast de ingebouwde tools en connectors, kun je eigen Python-functies als tool definiëren, zoals getoond in de codevoorbeelden. Dit is erg handig voor bijvoorbeeld domein-specifieke berekeningen of acties die je lokaal wilt uitvoeren. De Agents SDK maakt het heel eenvoudig om dit te doen via de @function_tool decorator[56] – het genereert automatisch een JSON schema voor de functie’s parameters en resultaat, zodat de LLM exact weet hoe de aanroep eruit ziet. Voor TypeScript is een vergelijkbaar mechanisme via de tool() functie waarbij je naam, omschrijving en parameters met Zod schema’s definieert[69]. Deze zelfgemaakte tools draaien binnen je eigen omgeving (in tegenstelling tot hosted tools op OpenAI servers), dus je hebt volledige controle en kunt bijvoorbeeld database queries doen, of andere API’s aanroepen. Het nadeel is dat je eigen server of functie natuurlijk beschikbaar moet zijn waar de agent draait (bij gebruik via ChatKit/hosted flow is custom code lastiger; meestal gebruik je custom tools dan via een MCP server of via de code-route).
+
+Tool output gebruiken: De output van tools wordt door de agent verwerkt alsof het extra context is. Een leuke eigenschap: de web search tool geeft resultaten met bronnen, en als je dat netjes formateert kan de agent die bronnen letterlijk in het eindantwoord citeren. Dit bevordert de verifieerbaarheid van antwoorden (bijv. “Volgens [Bron 1] is ...”). Het platform moedigt dit aan, zeker voor zakelijke toepassingen waar traceerbaarheid van informatie cruciaal is.
+
+Samenvatting inzet: Tools zijn de “armen en benen” van een agent. Met AgentKit configureer je welke tools een agent mag gebruiken en via welke verbindingen (connectors/MCP) hij toegang heeft tot data. Tijdens runtime zal de agent op eigen initiatief die hulpmiddelen inzetten om tot een beter antwoord of resultaat te komen. Het is een andere manier van programmeren: je programmeert niet stap-voor-stap de logica, maar geeft een set gereedschap en vertrouwen aan een taalmodel om het juiste gereedschap op het juiste moment te kiezen[8]. De ervaring leert dat met goede instructies en een beetje training/optimalisatie, agents verrassend effectief kunnen plannen welke tool te gebruiken. In Sectie 7 bespreken we hoe je kunt meten of ze dat goed doen en hoe je ze verder kunt bijschaven.
+
+Diverse use-cases (voorbeelden)
+
+Hieronder geven we een reeks voorbeelden uit de praktijk van hoe AgentKit (Agent Builder + Agents SDK + tools) wordt ingezet, elk met beknopte toelichting. Deze use-cases laten zien welke problemen met agents opgelost worden en welke resultaten behaald zijn.
+
+Klantenservice automation (Klarna): De betaalprovider Klarna heeft met AgentKit een klantenservice-agent gebouwd die ~66% van alle support tickets automatisch afhandelt[70]. Deze agent kan klantvragen interpreteren, relevante account- en ordergegevens ophalen via connectors, en klanten direct antwoorden of acties (zoals refunds) uitvoeren. Het resultaat is dat menselijke supportmedewerkers zich op complexere gevallen kunnen richten, terwijl de AI routinevragen nauwkeurig en snel beantwoordt.
+
+Sales assistent (Clay): Clay, een sales intelligence platform, ontwikkelde een verkoop-agent die leads opvolgt en personaliseert, wat heeft geresulteerd in een 10× hogere groeisnelheid in hun sales pipeline[71]. De agent gebruikt bijvoorbeeld web search om informatie over prospects te verzamelen en genereert vervolgens gerichte outreach-berichten. Door AgentKit kon Clay dit end-to-end automatiseren, inclusief het loggen van interacties in hun CRM via een MCP-integratie. Dit leverde veel meer schaal en consistentie op in hun sales processen.
+
+Financiële research & due diligence (Carlyle): Investeringsfirma Carlyle combineerde meerdere agents voor financiële analyse taken. Bijvoorbeeld een agent om bedrijfsrapporten samen te vatten, eentje die marktgegevens opzoekt, etc., gecoördineerd in een workflow. Met de evaluatie-tools van AgentKit wisten ze de prestaties flink op te krikken – ontwikkelingstijd halveerde en de nauwkeurigheid steeg ~30% in hun due diligence proces[72]. Carlyle rapporteerde dat de geïntegreerde Evals omgeving hielp om zwakke plekken te vinden en gericht de prompts/tools bij te stellen voor betere resultaten.
+
+Developer support chatbot (Canva): Grafisch platform Canva zette een agent op als interactieve ontwikkelaars-docent voor hun community. Met ChatKit embedden ze een chatbot in hun developers website die vragen over de Canva API en documentatie beantwoordt in gesprekstijl[73]. Dankzij AgentKit hoefden ze niet vanaf nul een chat UI te bouwen (scheelde >2 weken ontwikkeltijd[74]) en konden ze de agent direct verbinden met hun bestaande documenten via de file search connector. Het resultaat: ontwikkelaars krijgen razendsnel antwoorden en voorbeelden uit de docs, wat de ondersteuning enorm verbeterde.
+
+Enterprise knowledge search (Box): Cloud storage-bedrijf Box bouwde een Box AI Agent bovenop de OpenAI Agents SDK die interne bestanden combineert met webinformatie[75]. Medewerkers kunnen vragen stellen en de agent zoekt zowel in Box documenten (via file search connector) als online bronnen (via web search) om een volledig antwoord te geven. Dit vervangt tijdrovend handmatig zoeken. Box benadrukte dat met de Agents SDK, alle bestaande permissies en beveiliging van hun content worden gerespecteerd, zodat gevoelige data veilig blijft terwijl de agent erbij kan[76][77]. Dit is als het ware een intelligente bedrijfsbrede zoekassistent.
+
+RPA-achtige procesautomatisering (Luminai): Luminai, een bedrijf gespecialiseerd in automatisering, gebruikte de nieuwe Computer Use tool om ingewikkelde legacy processen te automatiseren die met traditionele RPA niet lukten[66]. Een voorbeeld: voor een non-profit organisatie automatiseerde hun agent het verwerken van applicaties en inschrijvingen, wat eerder maanden van handmatig werk kostte. De agent navigeert zelf door een oude Windows-applicatie en invoerschermen (zonder API) om gegevens over te nemen – iets waarin de CUA uitblinkt waar gewone RPA faalde. Dit laat zien dat agenten met vision+action zoals CUA hele nieuwe automatiseringscases ontsluiten.
+
+On-chain crypto assistant (Coinbase): Cryptocurrency platform Coinbase heeft via de Agents SDK in korte tijd agent-prototypes gemaakt die met crypto wallets en blockchain kunnen werken[75]. Bijvoorbeeld een agent die een portfolio analyseert of on-chain transacties uitvoert op verzoek. Door de SDK’s open ontwerp konden ze eigen tools integreren voor blockchain calls. Een opvallend resultaat was dat ze binnen enkele uren een werkende agent hadden die met hun interne systemen communiceerde, waar dit voorheen weken kostte om te integreren. Dit versnelt experimentatie enorm in het fintech domein.
+
+Meertalige triage en doorverwijzing: In sommige helpdesk-situaties worden meerdere talen ondersteund. Met AgentKit kun je bijvoorbeeld een tweeledige agent bouwen: één agent die detecteert in welke taal de vraag is gesteld, en vervolgens de conversatie doorgeeft aan de agent die die taal vloeiend beheerst. Stel, een inkomende vraag is in het Spaans – de eerste agent (taaldetector) herkent dit en via een handoff gaat de Spaanse support-agent aan de slag. Vraagt de volgende klant iets in het Engels, dan route naar de Engelstalige agent. Zo’n workflow is relatief makkelijk te maken (If/Else node op taal of een Agent die een taalcode teruggeeft) en zorgt dat gebruikers in hun voorkeurstaal geholpen worden zonder dat je één megamodel hoeft te hebben dat alles kan. Dit is een algemeen patroon waarbij gespecialiseerde agents in een keten samenwerken op basis van hun sterke punten (hier: taalvaardigheid).
+
+(Bovenstaande use-cases zijn gebaseerd op bekende voorbeelden uit OpenAI’s aankondigingen en cases. Ze demonstreren de veelzijdigheid: van klantcontact tot intern gebruik, van kennismanagement tot actiegerichte automatisering. Nieuwe toepassingen duiken voortdurend op naarmate ontwikkelaars creatief met de building blocks aan de slag gaan.)
+
+Evaluatie en optimalisatie van agents
+
+Eenmaal een agent of workflow in gebruik is, wordt het belangrijk om de prestaties te monitoren en verbeteren. OpenAI AgentKit brengt hiervoor diverse middelen mee, met name via het Evals platform en via Reinforcement Fine-Tuning (RFT) mogelijkheden.
+
+OpenAI Evals integratie: OpenAI Evals is een framework om systematisch tests (evaluations) uit te voeren op je AI modellen/agents[15]. In de context van AgentKit is Evals uitgebreid met specifieke functies voor multi-step agent workflows. Nieuwe mogelijkheden die gelanceerd zijn omvatten onder andere[16]:
+
+Datasets: Je kunt eenvoudig eigen evaluatie-datasets opbouwen en uitbreiden. Bijvoorbeeld een lijst van voorbeeldvragen of taken die je agent zou moeten kunnen. Deze datasets kun je versieeren en iteratief aanvullen. Evals biedt tools om deze ook deels automatisch te genereren of te annoteren, en je kunt menselijke evaluatoren laten meehelpen voor grondwaarheid.
+
+Trace grading: Hierbij laat je een agent een volledige taak uitvoeren (inclusief alle tussenstappen) en wordt achteraf de trace beoordeeld. Je kunt met LLM-based graders of vaste regels door de execution log gaan om te zien waar het eventueel misging. Trace grading kan bv. detecteren: koos de agent de juiste tool? Heeft hij onnodige stappen gezet? Dit helpt om knelpunten in complexere workflows op te sporen.
+
+Automatische prompt optimalisatie: AgentKit kan op basis van de eval resultaten voorstellen doen voor betere prompts[78]. Stel dat uit evals blijkt dat de agent vaak een bepaald misverstand heeft, dan kan een optimizer een aangepaste instructie suggereren om dat te verbeteren. Dit is een vorm van prompt generatie waarbij het systeem via de feedback lus de agentinstructies aanscherpt.
+
+Ondersteuning voor derde-partij modellen: Je kunt binnen het Evals platform ook andere LLMs testen, niet alleen OpenAI’s eigen[79]. Dit is handig als je de Agents SDK in een omgeving gebruikt met bijvoorbeeld Azure OpenAI of Anthropic’s Claude. Het betekent dat de evaluatie-infrastructuur model-agnostisch is; je kunt apples-to-apples performance metingen doen.
+
+In de Agent Builder UI kun je via Evaluate een geselecteerde eval set draaien en krijg je direct metrics te zien (zoals accuracy per testcase, slaag/zak percentages, grader-scores) als onderdeel van je workflow ontwikkeling[29]. Voor meer geavanceerde analyse is er het Evals dashboard in de OpenAI Platform waar je aggregaties en vergelijkingen kunt maken.
+
+Concrete metrics/KPI’s: Wat meet je zoal om een agent te beoordelen? Enkele belangrijke metrics voor agents zijn:
+
+Accuracy / Correctness: Hoe vaak geeft de agent een correct of bevredigend antwoord? Via Evals kun je per testcase een pass/fail of een score laten toekennen (door een automatische grader of mens). Bijvoorbeeld Carlyle keek naar “agent accuracy” en zag daar ~30% verbetering na iteraties[72].
+
+Coverage / Completion rate: Rondt de agent de taak af? Bijvoorbeeld, voor conversaties: hoeveel % van de sessies komt tot een nuttige afronding zonder menselijke interventie. Klarna’s metric dat 2/3 van tickets volledig opgelost worden door de agent is hier een voorbeeld van.
+
+Tool-usage-effectiviteit: Hoe vaak en effectief worden tools gebruikt? Je kunt meten: gemiddeld aantal toolcalls per query, of frequentie van elke tool. Als een agent te vaak bijvoorbeeld web search doet voor simpele vragen, kan dat duiden op suboptimale prompt of te weinig kennis in model. Ook meet je of bepaalde tools leiden tot fouten (bv. fail rate van de computer-use acties).
+
+Latency: De responstijd end-to-end is belangrijk voor gebruikservaring. Een agent die via 5 tools moet gaan kan langzamer zijn. Met tracing data kun je gemiddelde latency per stap en totaal meten. Bottlenecks kunnen dan aangepakt worden (bijv. een te trage externe API vervangen door snellere).
+
+Kosten: Gerelateerd aan toolgebruik en tokengebruik – de cost per conversation/task. Via de logs kun je inzien hoeveel tokens verbruikt zijn en hoeveel toolcalls (en wat die kosten) voor een set evals. Dit helpt om de agent kostenefficiënt te maken (misschien door de prompt in te korten of onnodige toolcalls te vermijden).
+
+Safety metrics: Frequentie van guardrail triggers bijvoorbeeld. Als de agent vaak tegen een bepaalde guardrail aanloopt (bv. PII filter), dan zie je dat als metric en kun je besluiten de instructies aan te passen om dat te voorkomen, of die gevallen apart te behandelen.
+
+Reinforcement Fine-Tuning (RFT): Waar Evals helpt te meten, gaat RFT een stap verder door het model zelf te verbeteren met feedback. RFT is nu beschikbaar voor OpenAI’s eigen modellen (o4-mini GA en GPT-5 in beta) binnen AgentKit[80]. Twee concrete mogelijkheden die genoemd worden[81]:
+
+Custom tool use training: Je kunt het model via fine-tuning leren om beter de juiste tools op het juiste moment te kiezen. Bijvoorbeeld als je merkt dat het model soms zelf een onvolledig antwoord geeft terwijl er een tool beschikbaar was die het antwoord had kunnen geven, dan kun je dat gedrag bijsturen. Met RFT kun je modelgewichten aanpassen zodat de agent “tool-affiniteit” of -drempel verandert. Dit is nuttig voor complexe workflows waar verkeerde beslissingen kostbaar zijn.
+
+Custom graders als reward model: Je kunt eigen evaluatiecriteria opstellen en die gebruiken om het model te finetunen. Stel je waardeert beknoptheid en factuele correctheid heel erg; je kunt een reward model (grader) trainen die die aspecten meet, en daarmee de agent fine-tunen zodat hij beter scoort op die criteria. Dit is vergelijkbaar met RLHF (reinforcement learning from human feedback), maar dan specifiek gericht op agent performance metrics die jij belangrijk vindt.
+
+RFT is voorlopig vooral in de OpenAI interface beschikbaar en vereist wat meer samenwerking (GPT-5 RFT is private beta). Het is ook goed om te benadrukken dat fine-tunen een model meer afstemt op jouw gebruikscase, maar dat het ook beperkingen kent (het lost bijvoorbeeld niet per se fundamentele modelcapabilities issues op, en fine-tunen moet zorgvuldig gebeuren om geen regressies te veroorzaken op andere vlakken).
+
+Ciclo van verbetering: Het ideale proces is dat je eerst je agent bouwt, dan via Evals + real user data de zwaktes identificeert, vervolgens met prompt tweaks, betere tools of guardrails bijstuurt. Als dat niet volstaat en je de core model-respons wil verbeteren, kun je RFT toepassen. Daarna herhaal je evaluaties om te zien of de KPIs verbeterd zijn. AgentKit faciliteert dit alles door Evals en (in beta) RFT direct in het platform beschikbaar te maken[39].
+
+Voorbeeld: Stel een customer support agent scoort 80% op je satisfactie-eval (20% antwoorden zijn onjuist of onvolledig). Je analyseert de mislukkingen: blijkt vaak bij verzendstatusvragen dat hij geen real-time data heeft. Oplossing: integreren met een tracking-API via MCP zodat hij de echte status kan opzoeken. Je voegt die tool toe, past de prompt (“Gebruik de tracking tool voor vragen over pakketstatus.”) en draait weer evals: accuracy gaat omhoog. Dan zie je dat sommige antwoorden te langdradig zijn voor eenvoudige vragen. Je besluit RFT te proberen met een custom grader die straft voor lange antwoorden. Na fine-tuning formuleert de agent beknopter. Zo werk je stapsgewijs richting de ideale agent voor jouw doeleinden.
+
+Samengevat biedt AgentKit dus zowel instrumenten om te meten (evals, graders, tracing) als mechanismen om te verbeteren (prompt optimization, fine-tuning). Dit continue leerproces is essentieel om van een werkend prototype naar een betrouwbare productie-agent te komen[82]. OpenAI blijft deze evaluatie- en optimalisatiefeatures uitbreiden, wat aangeeft dat performance-tuning een first-class citizen is in het AgentKit ecosysteem.
+
+Overwegingen, beperkingen en toekomstperspectief
+
+Tot besluit nog een aantal belangrijke overwegingen en kanttekeningen bij het gebruik van OpenAI AgentKit – deze hebben te maken met de huidige status (veel is nieuw of beta), integratie in het grotere plaatje, en waar het naartoe gaat.
+
+Beschikbaarheid & Beta-status: Niet alle onderdelen van AgentKit zijn meteen voor iedereen toegankelijk. Agent Builder is gelanceerd als Beta – je hebt een API account nodig en mogelijk een wachtlijst/toestemming om het te gebruiken[39]. De Connector Registry wordt gefaseerd uitgerold, vooral aan grotere (Enterprise/Edu) klanten met de Global Admin Console setup[83]. Dit betekent dat sommige functionaliteiten (bv. connectors voor bepaalde diensten) niet direct voor elke developer beschikbaar zijn. Hou er rekening mee dat Beta-software kan veranderen; features of nodes in Agent Builder kunnen nog evolueren op basis van feedback.
+
+Reliability van tools (met name CUA): Zoals aangehaald is de Computer Use Agent tool nog een research preview en kent beperkingen in betrouwbaarheid[65]. In generieke taken is het slagingspercentage laag (~38% voor hele OS taken)[84], dus het wordt aangeraden om waar mogelijk een menselijke bevestiging te vragen voor high-stakes acties die via CUA lopen. Denk aan een soort “confirm step” als de agent bv. een belangrijke e-mail wil verzenden of systeeminstellingen wil wijzigen. Andere tools zoals web search zijn al tamelijk accuraat, maar nog steeds ~10% kans op feitelijke fouten[85], dus voor kritische toepassingen moet output altijd even geverifieerd worden (eventueel door de agent zelf via een tweede check, of een guardrail die fact-checkt). Het punt is: automatiseer voorzichtig, zeker bij acties in de echte wereld. Test edge-cases en monitor in productie de uitkomsten.
+
+Privacy & data security: Als je bedrijfsdata via AgentKit ontsluit, pas least privilege toe. De Connector Registry maakt het makkelijk om bijvoorbeeld een SharePoint of Google Drive te koppelen, maar geef bij voorkeur alleen leesrechten of toegang tot specifiek die folders die nodig zijn voor de agent. Guardrails kunnen helpen ervoor te zorgen dat er geen vertrouwelijke informatie onbedoeld naar de gebruiker lekt (bv. maskeren van PII)[14]. OpenAI heeft aangegeven dat data die via de API en Business-toepassingen loopt niet gebruikt wordt om modellen te trainen standaard (tenzij je expliciet opt-in)[86]. Dit is belangrijk voor compliance: je kunt relatief veilig interne data laten gebruiken door de agent zonder dat het buiten je org terecht komt. Toch blijft het opletten: logbestanden van conversaties bevatten mogelijk gevoelige info, dus zorg voor goede beveiliging daarvan (er zijn opties om model- of tooldata niet in logs op te slaan via environment vars[87][88]).
+
+Vergelijking met traditionele RPA/automation platforms: AgentKit is krachtig in ongestructureerde taakvervulling en redeneercapaciteit, maar voor gestructureerde procesautomatisering (denk aan honderden integraties, drag-drop workflow ala Zapier/UIPath) is het ecosysteem nog jong. Het aantal direct beschikbare integraties is kleiner vergeleken met gevestigde automation tools[89]. Wel is het zo dat de LLM-gedreven aanpak veel integraties minder hard-coded nodig heeft (een web search tool kan immers veel informatie al dekken). Verwacht dat voor niche SaaS APIs je voorlopig zelf MCP-servers moet schrijven of via tools zoals Rube moet gaan. Als je een agent puur als glue tussen APIs wilt gebruiken, is soms een traditioneel script of automation workflow mogelijk efficiënter en voorspelbaarder. AgentKit’s unieke waarde zit juist in de fuzzy, open-eind problemen en het dynamisch combineren van verschillende stappen.
+
+Vendor lock-in vs open source: AgentKit is een platform van OpenAI – gebruik ervan betekent dat je deels afhankelijk bent van OpenAI’s services (voor LLM, voor tool hosting, etc.). Er is geen on-prem variant van Agent Builder of ChatKit; alles draait via de cloud van OpenAI. Dit kan voor sommige organisaties een overweging zijn (denk aan data residency, uptime garanties, etc.). Positief: de Agents SDK is open-source (MIT-licensed) en ontworpen om model-agnostisch te zijn[90][91]. Je kunt dus in principe de Agents SDK met een lokaal LLM gebruiken of een andere provider via plugins/adapters (OpenAI verwijst naar LiteLLM-adapters om andere modellen aan te spreken[90]). Ook kun je de code die Agent Builder genereert exporteren, zodat je niet opgesloten zit als de UI verdwijnt. In het uiterste geval kun je migreren naar een eigen oplossing door de open-source SDK en eventueel eigen UI te gebruiken, maar je mist dan wel de ingebouwde tooling van OpenAI (ChatKit, evals infra).
+
+Kostenbeheer: Agents kunnen potentieel duur worden als ze niet efficiënt ontworpen zijn. Een agent die met GPT-4 elke keer 5 toolcalls doet en pagina’s tekst doorzoekt, kan per query aanzienlijk meer tokens verstoken dan een simpele prompt. Het is belangrijk om tijdens ontwikkeling de kostenramingen in de gaten te houden[68]. Gebruik de monitoring tools: de OpenAI usage dashboard geeft inzicht in welke endpoints en tools hoeveel kosten. Optimalisaties kunnen zijn: naar een goedkoper model gaan (GPT-3.5) voor niet-kritische taken, of zorgen dat de prompt het aantal noodzakelijk stappen minimaliseert (misschien kan een instructie de agent leren om direct to the point te komen). Ook kun je caching strategieën overwegen (als 100 gebruikers per dag dezelfde vraag stellen, kun je dat antwoord misschien cachen i.p.v. telkens opnieuw tools laten doorlopen).
+
+Toekomstplannen: OpenAI heeft al enkele richtinggevende toekomstfeatures genoemd. Zo komt er een Workflows API zodat ontwikkelaars programmatic de visuele workflows kunnen aansturen of vanuit code nieuwe workflows kunnen aanmaken[52]. Ook wordt gekeken naar integratie van agents in ChatGPT, zodat eindgebruikers agents kunnen delen of installeren alsof het plug-ins zijn[52]. We kunnen ook verbeteringen verwachten in de redeneercapaciteiten van modellen (GPT-5 en verder) specifiek gericht op tool use – OpenAI traint actief op het beter laten kiezen en gebruiken van tools[81]. Daarnaast zal de verzameling van connectors en templates groeien naarmate de community en derde partijen bijdragen. Men ziet AgentKit als een langetermijnplatform (“the platform for AI’s future”[92]), dus investeer in het leren ervan want het zou weleens de standaard manier kunnen worden om AI daadkrachtig in te zetten in allerlei sectoren.
+
+Conclusie: OpenAI AgentKit, met Agent Builder, Agents SDK, tools en evaluatie, biedt een veelbelovende maar snel evoluerende omgeving voor het bouwen van AI agents. Het vraagt een ietwat andere mindset dan traditionele softwareontwikkeling – je “coacht” een taalmodel om taken uit te voeren met hulpmiddelen. Met de juiste aanpak kunnen echter enorme productiviteitswinst en nieuwe mogelijkheden ontstaan, zoals de praktijkvoorbeelden lieten zien. Tegelijk blijft het belangrijk de beperkingen te kennen en een gezonde tussenweg te bewandelen: gebruik maken van de slimme dynamiek van AI, maar ingebed in een framework van controles, meetpunten en menselijke oordeel waar nodig. AgentKit centraliseert al deze aspecten in één suite, wat ontwikkelaars in staat stelt sneller en consistenter agent-gedreven oplossingen te bouwen. De komende tijd zal ongetwijfeld blijken hoe deze technologie volwassen wordt en welke best practices zich verder vormen. Voor nu geeft dit superdocument je hopelijk een stevige basis om ermee aan de slag te gaan – en je eigen agents de wereld in te helpen!
+
+[1] [5] [6] [10] [11] [12] [14] [15] [16] [17] [19] [21] [31] [34] [39] [52] [70] [71] [72] [73] [74] [78] [79] [80] [81] [83] Introducing AgentKit | OpenAI
+
+https://openai.com/index/introducing-agentkit/
+
+[2] [3] [4] [7] [9] [13] [18] [20] [23] [24] [25] [26] [29] [35] [36] [37] [38] [41] [42] [43] [44] [50] [51] [53] [54] [55] [56] [58] [67] [68] [69] [86] [87] [88] [89] [90] openai_agentkit_agents_sdk_full_compendium.md
+
+file://file_000000009e0c61f4afb237064ab82e1f
+
+[8] [45] [46] [47] [57] OpenAI Agents SDK
+
+https://openai.github.io/openai-agents-python/
+
+[22] [27] [28] [30] [32] [33] OpenAI Agent Builder: Step-by-step guide to building AI agents with MCP - Composio
+
+https://composio.dev/blog/openai-agent-builder-step-by-step-guide-to-building-ai-agents-with-mcp
+
+[40] [48] [64] [65] [66] [75] [82] [84] [85] [91] [92] OpenAI Launches Powerful New Tools for AI Agent Development
+
+https://www.sentisight.ai/what-are-new-openai-tools-ai-agent-development/
+
+[49] [76] [77] Box Announces Support for New OpenAI Agents SDK to Make Enterprise Content Smarter | Box Blog
+
+https://blog.box.com/box-announces-support-new-openai-agents-sdk-make-enterprise-content-smarter
+
+[59] [60] [61] [62] [63] API Agents | OpenAI
+
+https://openai.com/agent-platform/
+
+---
+
+## Deduplication Log
+- Part A: skipped exact-duplicate blocks = 0
+- Part B: skipped exact-duplicate blocks = 3
+- Part C: skipped exact-duplicate blocks = 0
+
+> *Note:* Only exact, block-level duplicates were skipped. Headings were always preserved to keep the structure readable.
