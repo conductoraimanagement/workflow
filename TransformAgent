@@ -1,0 +1,298 @@
+Hieronder staan compacte, complete specs voor de TrainingDataAgent die .md → ready‑to‑use JSONL datasets maakt (train/val/test) voor SFT (chat), optioneel DPO en code/FIM—zonder zelf onderzoek te doen.
+
+0) Doel & Deliverables
+
+Input: map met .md‑bestanden (liefst met YAML‑frontmatter).
+
+Output:
+
+/datasets/train.jsonl, /datasets/val.jsonl, /datasets/test.jsonl (doc‑level split).
+
+/reports/quality.md (dekking, lengte, dupes, errors), /reports/stats.json.
+
+/artifacts/log.jsonl (trace + beslissingen per sectie).
+
+Niet-doel: geen web/research; geen inhoudelijke verrijking buiten de bronsectie.
+
+1) Invoervereisten (.md)
+
+Aanbevolen frontmatter per bestand (YAML)
+
+doc_id: kb-123
+title: Reset wachtwoord
+language: nl
+source_url: https://...
+license: internal
+tags: [helpdesk, accounts]
+date: 2025-09-02
+
+
+Body: semantische kopjes (#, ##, ###), alinea’s, codeblokken (```lang), tabellen.
+Naming: bestandsnaam = {doc_id}__{slug}.md.
+
+2) Uitvoerformaten (JSONL)
+2.1 SFT (chat, aanbevolen)
+
+Één regel per voorbeeld:
+
+{"messages":[
+  {"role":"user","content":"<heldere vraag gebaseerd op sectie>"},
+  {"role":"assistant","content":"<feitelijk, compleet antwoord; geen extra tekst>"}
+],
+"metadata":{"doc_id":"...", "section":"...", "language":"nl", "source_url":"...", "tags":["..."]}}
+
+2.2 DPO/ORPO (optioneel voorkeurstraining)
+{"prompt":"<dezelfde vraag>",
+ "chosen":"<beste, correcte antwoord>",
+ "rejected":"<acceptabel maar inferieur antwoord>",
+ "metadata":{"doc_id":"...", "section":"..."}}
+
+2.3 Code/FIM (optioneel, voor code‑taken)
+{"messages":[
+  {"role":"user","content":"<code-taak + randvoorwaarden; geef alleen code>"},
+  {"role":"assistant","content":"<code block>"}
+],
+"metadata":{"language":"python","tests":"<doctest/pytest snippet>","doc_id":"..."}}
+
+3) Architectuur & Pipeline
+3.1 Orchestratie
+
+Één Orchestrator (TrainingDataAgent) + (optioneel) Critic voor steekproef‑QA.
+
+3.2 Stappen
+
+Preflight: map scannen, schema’s laden, tokenizers klaarzetten, licentie/taal‑check.
+
+Parser: frontmatter + body; HTML/links strippen; codeblokken detecteren; section_id genereren.
+
+Segmentatie: per kopniveau (hoofdstuk/sectie/subsectie). Merge micro‑secties < min_tokens.
+
+Example Builder (extractief/lichte parafrase, geen inventies):
+
+QA/Instruction: maak 1–3 user‑vragen per sectie + exact antwoord uit sectietekst.
+
+Conversational als procedure/faq aanwezig (max 3 turns).
+
+Code/FIM als codeblokken/procedures aanwezig (incl. korte tests).
+
+Validator:
+
+JSON‑schema, role‑volgorde, lengte‑limieten, forbidden phrases (“als AI…”, “kan niet…”),
+
+Dedup (exact + near‑dup fingerprint),
+
+Decontaminatie: nooit secties uit zelfde doc_id over splits heen,
+
+Code‑check (optioneel): sandbox run/doctest, linter.
+
+Split & Write:
+
+Doc‑level split: deterministisch op hash(doc_id) → train/val/test (bijv. 80/10/10).
+
+Shuffle binnen splits; schrijf *.jsonl.
+
+Reporting: stats (aantal voorbeelden, tokens, dupes, afwijzingen), dekking per doc_id/section.
+
+4) Tools (aan de Agent gekoppeld)
+
+Filesystem / IO
+
+list_files(dir) -> [paths]
+
+read_markdown(path) -> {frontmatter: dict, body_md: str}
+
+write_jsonl(path, iterable_of_objects)
+
+write_text(path, text)
+
+Text ops
+
+markdown_to_blocks(md) -> [Block(type, text, lang?, heading_level?)]
+
+token_count(text, model) -> int
+
+minhash_fingerprint(text) -> str (near‑dup)
+
+normalize_whitespace(text) -> str
+
+truncate_by_tokens(text, max_tokens, model) -> text
+
+Validation
+
+validate_schema(obj, schema_name) -> List[errors]
+
+lint_answer(text, ruleset) -> List[violations]
+
+deduplicate(objs, key_fn) -> objs
+
+license_filter(frontmatter) -> allow|deny|warn
+
+Code (optioneel)
+
+run_doctest(code, tests) -> pass|fail + logs
+
+lint_code(code, lang) -> List[issues]
+
+Metrics/Reports
+
+stat_counter(event, value)
+
+render_quality_report(stats, path)
+
+Implementatiehint: Python + markdown-it-py of mdformat voor parsing, pydantic/jsonschema voor schema’s, text-dedup/MinHash voor near‑dup, hf-tokenizers voor token‑tellen, pytest/doctest sandbox voor code.
+
+5) Prompts & Policies (TrainingDataAgent)
+5.1 System prompt (kern)
+
+Je zet alleen informatie uit de aangeleverde sectie(s) om naar fine‑tune voorbeelden.
+Verboden: hallucineren, softenings (“mogelijk”, “misschien”), disclaimers, verwijzingen naar jezelf.
+Output is uitsluitend een lijst JSON‑objecten die exact voldoen aan het gekozen schema (SFT/DPO/Code).
+Taal = taal van de bron (tenzij force_language is gezet).
+Antwoorden zijn zelfstandig begrijpelijk, beknopt, en zonder irrelevante context.
+Respecteer limieten: max_input_tokens, max_output_tokens, max_examples_per_section.
+Sla secties over als info onvoldoende is (log “skipped: reason”).
+
+5.2 Developer‑regels (strikt)
+
+Brontrouw: citeer/parafraseer alleen wat in de sectie staat; geen externe kennis.
+
+Consistentie: geen placeholders (“...”), geen “zie hierboven”.
+
+Code: bij “alleen code” geen proza terug; codeblok compleet en uitvoerbaar.
+
+Formatting: geen triple backticks in SFT‑antwoorden, tenzij code onmisbaar is.
+
+Metadata: altijd "metadata": {"doc_id","section","language","source_url"} meeleveren.
+
+5.3 Few‑shot templates (korte voorbeelden)
+
+QA/Instruction: 2–3 voorbeelden per domein (helpdesk, beleid, product).
+
+Code: 1 voorbeeld met tests.
+(Bewaar ze in /config/templates/*.json en laad ze in de prompt.)
+
+6) Config (YAML)
+paths:
+  input_dir: "./md"
+  out_dir: "./datasets"
+  reports_dir: "./reports"
+modes:
+  sft: true
+  dpo: false
+  code: auto         # auto|always|never
+language:
+  force_language: null  # bv. "nl" of null = bron
+limits:
+  max_examples_per_section: 3
+  max_input_tokens: 3000
+  max_output_tokens: 800
+  min_section_tokens: 80
+split:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+  seed: 7
+validation:
+  forbid_phrases: ["als AI","kan niet helpen","excuses"]
+  max_dup_jaccard: 0.9
+  run_doctest: true
+  lint_code: true
+schemas:
+  sft: "schemas/sft.json"
+  dpo: "schemas/dpo.json"
+  code: "schemas/code.json"
+
+7) JSON‑Schema’s (samengevat)
+
+SFT
+
+{"type":"object","required":["messages","metadata"],
+ "properties":{
+  "messages":{"type":"array","minItems":2, "items":{
+    "type":"object","required":["role","content"],
+    "properties":{"role":{"enum":["user","assistant"]},"content":{"type":"string","minLength":1}}
+  }},
+  "metadata":{"type":"object","required":["doc_id","section","language"],
+    "properties":{"doc_id":{"type":"string"},"section":{"type":"string"},"language":{"type":"string"},
+      "source_url":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}}}}
+}}
+
+
+DPO
+
+{"type":"object","required":["prompt","chosen","rejected","metadata"],
+ "properties":{"prompt":{"type":"string"},"chosen":{"type":"string"},"rejected":{"type":"string"},
+  "metadata":{"type":"object","required":["doc_id","section"]}}}
+
+
+Code
+
+{"type":"object","required":["messages","metadata"],
+ "properties":{"messages":{"type":"array","minItems":2},
+  "metadata":{"type":"object","required":["language","doc_id"]}}}
+
+8) Modelkeuze & Reasoning
+
+Generator (hoofdmodel): sterk reasoning‑model met strikt JSON/Schema‑mode en lage temperatuur.
+
+Params (aanrader): temperature=0.1–0.3, top_p=0.9, max_tokens=800, json_schema=sft|dpo|code.
+
+Waarom: hoge consistentie, weinig drift, schema‑nauwkeurig.
+
+Code‑assistent (optioneel): Codestral aanroepen voor code‑snippets/tests of FIM‑voorbeelden.
+
+Critic (optioneel): kleiner, goedkoop model dat steekproefsgewijs factuality/style checkt en JSON‑validatie uitvoert.
+
+Geen kennisbank nodig: de agent leest secties; templates + regels zijn voldoende. (Eventueel mini‑glossary als bron inconsistent is.)
+
+9) Kwaliteit & KPI’s
+
+Coverage: ≥1 voorbeeld per sectie; rapport “gaps”.
+
+Invalid rate: <2% (schema/lint).
+
+Dupes (near‑dup): <1% Jaccard > 0.9.
+
+Avg tokens/antwoord: 80–250 (SFT), configureerbaar.
+
+Code pass‑rate (doctest): ≥90% op gegenereerde tests.
+
+Leak‑guard: 0 lekken van hetzelfde doc_id over splits.
+
+10) Foutafhandeling & Edge‑cases
+
+Te korte sectie: skip + log reason.
+
+Tabel‑zware sectie: maak samenvattende QA (“Wat zijn de voorwaarden…?”).
+
+Afbeeldingen: negeren tenzij alt‑tekst aanwezig.
+
+Meertaligheid: default = taal van bron; force_language overschrijft.
+
+Licentie = deny: volledig overslaan.
+
+11) Eenvoudige beslislogica (pseudocode)
+for doc in list_files(input_dir):
+    fm, md = read_markdown(doc)
+    if license_filter(fm) != "allow": continue
+    blocks = markdown_to_blocks(md)
+    sections = segment(blocks, min_tokens)
+    for s in sections:
+        exs = []
+        if mode.sft:  exs += build_sft_examples(s, fm, templates)
+        if mode.code and has_code(s): exs += build_code_examples(s, fm)
+        if mode.dpo:  exs += build_dpo_pairs(s, fm)
+        for e in exs:
+            if validate_schema(e) and lint_ok(e): collected.append(e)
+collected = deduplicate(collected, key_fn=fingerprint)
+train, val, test = split_doc_level(collected, seed)
+write_jsonl("train.jsonl", train); write_jsonl("val.jsonl", val); write_jsonl("test.jsonl", test)
+render_quality_report(stats(collected), "reports/quality.md")
+
+Samenvatting keuzevragen
+
+Moet je hem kennis geven? Nee—alleen regels, templates en (optioneel) mini‑glossary.
+
+Kan het met duidelijke instructies? Ja—mits schema‑strict, lage temperatuur, valideren en doc‑level split.
+
+Welk model? Eén reasoning‑model met JSON‑mode voor genereren; Codestral (optioneel) voor code/FIM; kleine Critic voor QA.
